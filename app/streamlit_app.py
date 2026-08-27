@@ -12,7 +12,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import streamlit as st
 
-st.set_page_config(page_title="dMRV Data Validation", layout="wide")
+st.set_page_config(page_title="dMRV Data Validation", page_icon="🌾", layout="wide")
 
 # Inter (free, Google Fonts) is set app-wide via .streamlit/config.toml's
 # theme.font/headingFont - chosen as a close, license-free match for
