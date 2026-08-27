@@ -14,6 +14,11 @@ import streamlit as st
 
 st.set_page_config(page_title="dMRV Data Validator", page_icon="🌾", layout="wide")
 
+# App name/wordmark, persistently visible top-left of the sidebar and main
+# content area on every page (distinct from page_title above, which only
+# affects the browser tab).
+st.logo(str(REPO_ROOT / "app" / "assets" / "logo.svg"), size="large")
+
 # Inter (free, Google Fonts) is set app-wide via .streamlit/config.toml's
 # theme.font/headingFont - chosen as a close, license-free match for
 # Proxima Nova (see that file's comment to swap in a licensed Proxima Nova
