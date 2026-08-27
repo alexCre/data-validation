@@ -1,0 +1,35 @@
+rule_id: C5
+name: Installation before planting
+version: 1
+description: >
+  Every photo categorized Installation must have a capture_date within
+  [season Start Date - 1 month, season End Date + 3 months].
+scope: field_season
+status: ACTIVE
+required_inputs: [photos, season.start_date, season.end_date]
+missing_data: REVIEW
+expression:
+  operator: not
+  args:
+    - operator: exists
+      args:
+        - field: photos
+        - operator: and
+          args:
+            - operator: equals
+              args:
+                - field: item.category
+                - value: Installation
+            - operator: not
+              args:
+                - operator: date_between
+                  args:
+                    - field: item.capture_date
+                    - operator: add_months
+                      args:
+                        - field: season.start_date
+                        - value: -1
+                    - operator: add_months
+                      args:
+                        - field: season.end_date
+                        - value: 3

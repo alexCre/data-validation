@@ -1,0 +1,26 @@
+rule_id: C3
+name: Non-rice vs Rice monitoring
+version: 1
+description: >
+  If the diary-reported crop is not rice, every photo for the same
+  lot/season must be categorized Non-rice - no other category is allowed.
+scope: field_season
+status: ACTIVE
+required_inputs: [diaries.crop, photos]
+missing_data: REVIEW
+expression:
+  operator: not
+  args:
+    - operator: and
+      args:
+        - operator: not_equals
+          args:
+            - field: diaries.crop
+            - value: rice
+        - operator: exists
+          args:
+            - field: photos
+            - operator: not_equals
+              args:
+                - field: item.category
+                - value: "Non-rice"

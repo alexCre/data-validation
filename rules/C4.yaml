@@ -1,0 +1,27 @@
+rule_id: C4
+name: Photos outside season
+version: 1
+description: >
+  Every photo's capture_date must fall between the season's Start Date and
+  120 days after the diary-reported planting date (the monitoring window
+  for a crop cycle), not the season's official End Date.
+scope: field_season
+status: ACTIVE
+required_inputs: [photos, season.start_date, diaries.planting_date]
+missing_data: REVIEW
+expression:
+  operator: not
+  args:
+    - operator: exists
+      args:
+        - field: photos
+        - operator: not
+          args:
+            - operator: date_between
+              args:
+                - field: item.capture_date
+                - field: season.start_date
+                - operator: add_days
+                  args:
+                    - field: diaries.planting_date
+                    - value: 120

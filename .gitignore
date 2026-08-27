@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.duckdb
+*.duckdb.wal
+.DS_Store
+.pytest_cache/
+.streamlit/secrets.toml
+generated_drafts/*
+!generated_drafts/.gitkeep
+
+# Unused by the app (adapters/csv_adapter.py reads data/csv/*.csv only) and
+# contains unredacted PII (real names) that data/csv/*.csv has been scrubbed
+# of - never publish this.
+data/sql/

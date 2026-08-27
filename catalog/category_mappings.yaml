@@ -1,0 +1,6 @@
+# Reserved for a future rule that needs a crop <-> photo-category ontology
+# via the `mapped_equals` operator. No currently active rule (C1-C9)
+# references this - C2/C3 compare crop and photo category directly.
+crop_to_photo_category:
+  rice: [Installation, Drainage, Flooding, Saturated, Dry]
+  others: ["Non-rice"]

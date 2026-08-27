@@ -1,0 +1,42 @@
+# Editable, documented season date boundaries, sourced from the real
+# seasons reference table (project-supplied, not derived from CSV - there
+# is no seasons.csv in this dataset's export). Only season_id 3 and 4 are
+# backed by real CSV data in this PoC (data/csv/fields-*-2025-*.csv); 1, 2,
+# 5, and 6 are documented for when 2024/2026 season data becomes available.
+# validation.engine injects these into each field-season's `season` context
+# key (see build_field_season_contexts). C4/C5/C7 read season boundaries
+# from here. `bucket_name` is source-system metadata, not used by any rule.
+"1":
+  name: dry-crop-2024
+  label: "Dry Crop 2024"
+  start_date: "2023-10-16"
+  end_date: "2024-03-24"
+"2":
+  name: wet-crop-2024
+  label: "Wet Crop 2024"
+  start_date: "2024-06-10"
+  end_date: "2024-11-13"
+"3":
+  name: dry-crop-2025
+  label: "Dry Crop 2025"
+  start_date: "2024-10-21"
+  end_date: "2025-04-11"
+  bucket_name: "2025_season_1"
+"4":
+  name: wet-crop-2025
+  label: "Wet Crop 2025"
+  start_date: "2025-06-02"
+  end_date: "2025-11-30"
+  bucket_name: "2025_season_2"
+"5":
+  name: dry-crop-2026
+  label: "Dry Crop 2026"
+  start_date: "2025-11-01"
+  end_date: "2026-04-30"
+  bucket_name: "2026_season_1"
+"6":
+  name: wet-crop-2026
+  label: "Wet Crop 2026"
+  start_date: "2026-06-09"
+  end_date: "2026-12-24"
+  bucket_name: "2026_season_2"

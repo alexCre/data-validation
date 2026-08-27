@@ -1,0 +1,12 @@
+streamlit
+duckdb
+pydantic>=2
+pandas
+shapely
+pyproj
+pyyaml
+python-dateutil
+pytest
+anthropic
+python-dotenv
+pytz

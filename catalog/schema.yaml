@@ -1,0 +1,106 @@
+# Canonical validation data model. This describes the full target schema
+# from the master spec. Tables marked `available: false` are NOT present in
+# this PoC's dataset (data/csv only covers lots/diaries/photos) - rules that
+# require them resolve to NOT_APPLICABLE at runtime (see AVAILABLE_TABLES in
+# validation/engine.py), but they're still documented here so the Rule
+# Authoring Agent and the DSL validator recognize them as legitimate,
+# well-typed fields rather than hallucinated ones.
+
+lots:
+  available: true
+  description: One row per lot/field per season.
+  fields:
+    lot_id: {type: string, description: Canonical lot/field identifier (raw field_id).}
+    season_id: {type: string, description: Season identifier.}
+    farmer_id: {type: string, description: Opaque farmer/participant identifier (raw participant_id).}
+    geometry_wkt: {type: geometry_wkt, description: Lot boundary as WKT (source export column is misleadingly named `geojson`).}
+    geometry_crs: {type: string, description: "CRS of geometry_wkt, always EPSG:4326 in this dataset."}
+    declared_area_ha: {type: number, description: Farmer/self-reported declared area, hectares.}
+    geojson_area_ha_reported: {type: number, description: Source-system pre-computed geometry area in hectares (not recomputed by this PoC).}
+    tenurial_status: {type: enum, description: Land tenure status., values: [LANDHOLDER, TENANT]}
+    is_validated: {type: boolean, description: Source-system validation flag.}
+    irrigation_system: {type: string, description: Irrigation system name.}
+    irrigators_association: {type: string, description: Irrigators' association/group name.}
+
+diaries:
+  available: true
+  description: One row per lot/field per season (de-duplicated from the fertilizer-application fan-out).
+  fields:
+    diary_id: {type: string, description: Field diary identifier.}
+    lot_id: {type: string, description: Lot/field identifier.}
+    season_id: {type: string, description: Season identifier.}
+    planting_date: {type: date, description: Farmer-reported planting date.}
+    straw_management_date: {type: date, description: Farmer-reported straw management date.}
+    harvest_date: {type: date, description: Farmer-reported harvest date.}
+    crop: {type: enum, description: Crop reported in the field diary., values: [rice, others]}
+
+photos:
+  available: true
+  description: One-to-many photos per lot/field per season.
+  fields:
+    photo_id: {type: string, description: Photo identifier.}
+    lot_id: {type: string, description: Lot/field identifier.}
+    season_id: {type: string, description: Season identifier.}
+    capture_date: {type: datetime, description: When the photo was actually taken (not upload time).}
+    category: {type: enum, description: Photo category., values: [Installation, Drainage, Flooding, Saturated, Dry, "Non-rice"]}
+    status: {type: enum, description: Review/match status., values: [Matched, "Pending Match"]}
+    latitude: {type: number, description: Capture latitude.}
+    longitude: {type: number, description: Capture longitude.}
+
+fertilizer_applications:
+  available: true
+  description: >
+    One-to-many fertilizer applications per lot/field per season, from the
+    fan-out that diaries.csv de-duplicates away. application_id increases
+    in source-recording order, used as the application sequence (1st, 2nd,
+    ...) since no explicit sequence number is exported.
+  fields:
+    application_id: {type: integer, description: Fertilizer application identifier (raw field_fertilizer_application_id), increasing in source-recording order.}
+    lot_id: {type: string, description: Lot/field identifier.}
+    season_id: {type: string, description: Season identifier.}
+    fertilizer_type_id: {type: string, description: Fertilizer type identifier.}
+    applied_date: {type: date, description: Date the fertilizer was applied.}
+    applied_amount_kg: {type: number, description: Amount applied, kilograms.}
+
+farmers:
+  available: false
+  description: Farmer master data. Not present in this dataset's export.
+  fields:
+    farmer_id: {type: string, description: Farmer identifier.}
+
+contracts:
+  available: false
+  description: Farmer contract records. Not present in this dataset's export.
+  fields:
+    farmer_id: {type: string, description: Farmer identifier.}
+    status: {type: enum, description: Contract status., values: [SIGNED, UNSIGNED]}
+
+riceid:
+  available: false
+  description: RiceID crop classification. Not present in this dataset's export.
+  fields:
+    lot_id: {type: string, description: Lot/field identifier.}
+    season_id: {type: string, description: Season identifier.}
+    crop_class: {type: string, description: RiceID-reported crop classification.}
+
+lipa:
+  available: false
+  description: LIPA/DS26 membership. Not present in this dataset's export.
+  fields:
+    lot_id: {type: string, description: Lot/field identifier.}
+    season_id: {type: string, description: Season identifier.}
+    membership_id: {type: string, description: LIPA/DS26 membership reference.}
+
+season:
+  available: true
+  description: >
+    Season date boundaries. There is no `seasons.csv` in this dataset's
+    export, so boundaries are NOT read from a data file; they come from the
+    editable per-season_id config in catalog/season_bounds.yaml, injected
+    into each field-season's context by the engine (see
+    validation.engine.build_field_season_contexts). Document/adjust that
+    file if the real season calendar differs from the current default.
+  fields:
+    season_id: {type: string, description: Season identifier.}
+    start_date: {type: date, description: Season start date (from config).}
+    end_date: {type: date, description: Season end date (from config).}

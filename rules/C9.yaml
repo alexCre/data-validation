@@ -1,0 +1,16 @@
+rule_id: C9
+name: Fertilizer sequence
+version: 1
+description: >
+  Fertilizer applications, ordered by application_id (source-recording
+  order: 1st, 2nd, ...), must have non-decreasing applied_date - a later
+  application must not have been applied before an earlier one.
+scope: field_season
+status: ACTIVE
+required_inputs: [fertilizer_applications]
+missing_data: REVIEW
+expression:
+  operator: is_non_decreasing
+  args:
+    - field: fertilizer_applications
+  params: {order_field: application_id, value_field: applied_date}

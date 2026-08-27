@@ -1,0 +1,26 @@
+rule_id: C2
+name: Rice vs Non-rice
+version: 1
+description: >
+  If the diary-reported crop is rice, there must be no Non-rice-categorized
+  photo for the same lot/season.
+scope: field_season
+status: ACTIVE
+required_inputs: [diaries.crop, photos]
+missing_data: REVIEW
+expression:
+  operator: not
+  args:
+    - operator: and
+      args:
+        - operator: equals
+          args:
+            - field: diaries.crop
+            - value: rice
+        - operator: exists
+          args:
+            - field: photos
+            - operator: equals
+              args:
+                - field: item.category
+                - value: "Non-rice"

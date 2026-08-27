@@ -1,0 +1,22 @@
+rule_id: C1
+name: First photo is Installation or Non-rice
+version: 1
+description: >
+  The earliest photo by capture_date (not upload time) must be categorized
+  as Installation or Non-rice.
+scope: field_season
+status: ACTIVE
+required_inputs: [photos]
+missing_data: REVIEW
+expression:
+  operator: in_set
+  args:
+    - operator: get_field
+      args:
+        - operator: first_by
+          args:
+            - field: photos
+          params: {key_field: capture_date}
+      params: {field_name: category}
+  params:
+    values: [Installation, "Non-rice"]

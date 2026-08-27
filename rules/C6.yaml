@@ -1,0 +1,13 @@
+rule_id: C6
+name: Planting vs Straw Management
+version: 1
+description: Planting date must be after straw management date.
+scope: field_season
+status: ACTIVE
+required_inputs: [diaries.planting_date, diaries.straw_management_date]
+missing_data: REVIEW
+expression:
+  operator: date_after
+  args:
+    - field: diaries.planting_date
+    - field: diaries.straw_management_date

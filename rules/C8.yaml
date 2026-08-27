@@ -1,0 +1,24 @@
+rule_id: C8
+name: Fertilizer before planting
+version: 1
+description: >
+  Every fertilizer application's applied_date must not be before the
+  diary-reported planting date. A fertilizer application record with no
+  applied_date recorded (a known data-entry gap in this export) is ignored
+  as long as at least one other application for the same lot/season has a
+  usable date - it only drives REVIEW when no application for that
+  lot/season has any date at all.
+scope: field_season
+status: ACTIVE
+required_inputs: [diaries.planting_date, fertilizer_applications]
+missing_data: REVIEW
+expression:
+  operator: not
+  args:
+    - operator: exists_ignoring_unknown
+      args:
+        - field: fertilizer_applications
+        - operator: date_before
+          args:
+            - field: item.applied_date
+            - field: diaries.planting_date

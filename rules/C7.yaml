@@ -1,0 +1,14 @@
+rule_id: C7
+name: Planting outside season
+version: 1
+description: Planting date must fall within the season's date range.
+scope: field_season
+status: ACTIVE
+required_inputs: [diaries.planting_date, season.start_date, season.end_date]
+missing_data: REVIEW
+expression:
+  operator: date_between
+  args:
+    - field: diaries.planting_date
+    - field: season.start_date
+    - field: season.end_date
