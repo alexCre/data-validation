@@ -35,6 +35,38 @@ Open the app (it lands on Data & Setup by default), select season(s), click
 calls happen unless you use the Agentic Validation Rule Builder on the Rules
 page.
 
+## Deploy (Streamlit Community Cloud)
+
+Repo: https://github.com/alexCre/data-validation
+
+1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in (log
+   in with GitHub if prompted).
+2. **New app** → pick this repo, branch `main`, main file path
+   `app/streamlit_app.py`.
+3. Before/after deploying, open the app's **Settings → Secrets** in the
+   Streamlit Cloud UI and add:
+   ```toml
+   ANTHROPIC_API_KEY = "sk-ant-..."
+   ```
+   Never commit this to the repo - `.env` is gitignored and only used for
+   local runs. Without this secret set, the deployed app falls back to the
+   offline mock agent on the Rules page (deterministic C1-C9 validation
+   works either way).
+4. `requirements.txt` and `runtime.txt` (Python 3.11) are already in the
+   repo root for Streamlit Cloud's build step.
+
+**Known limitations of this deployment shape** (see `docs/ARCHITECTURE.md`
+for more): the DuckDB store (`dmrv_validation.duckdb`) lives on local
+container storage, which most PaaS hosts (including Community Cloud) treat
+as ephemeral - custom/activated rules saved via the Rules page may not
+survive a redeploy or container restart. Promote a rule you want to keep
+into the permanent rule pack instead (Rules page → Custom rules → ⬆️
+Promote), which writes a `rules/<id>.yaml` file that ships with the code.
+There is also no per-user auth or rate limiting - anyone with the deployed
+URL can trigger real Anthropic API calls billed to whatever key is set in
+Secrets; set a spending cap on that key in the Anthropic Console as a
+backstop.
+
 ## Test
 
 ```bash
