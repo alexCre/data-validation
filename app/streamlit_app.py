@@ -12,11 +12,12 @@ if str(REPO_ROOT) not in sys.path:
 
 import streamlit as st
 
-st.set_page_config(page_title="dMRV Data Validator", page_icon="🌾", layout="wide")
+st.set_page_config(page_title="dMRV Data Validator", page_icon=":material/search:", layout="wide")
 
 # App name/wordmark, persistently visible top-left of the sidebar and main
 # content area on every page (distinct from page_title above, which only
-# affects the browser tab).
+# affects the browser tab) - a real SVG magnifying-glass icon plus text,
+# not an emoji glyph.
 st.logo(str(REPO_ROOT / "app" / "assets" / "logo.svg"), size="large")
 
 # Inter (free, Google Fonts) is set app-wide via .streamlit/config.toml's

@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="240" height="28" viewBox="0 0 240 28">
-  <text x="0" y="20" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif"
-        font-size="18" font-weight="700" fill="#2a78d6">🌾 dMRV Data Validator</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="230" height="24" viewBox="0 0 230 24">
+  <g fill="none" stroke="#2a78d6" stroke-width="2" stroke-linecap="round">
+    <circle cx="9" cy="9" r="6.5"/>
+    <line x1="13.8" y1="13.8" x2="19.5" y2="19.5"/>
+  </g>
+  <text x="27" y="17" font-family="Inter, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        font-size="15" font-weight="700" fill="#2a78d6">dMRV Data Validator</text>
 </svg>
