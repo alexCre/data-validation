@@ -31,13 +31,13 @@ def test_diaries_deduplicated_from_fertilizer_fanout():
     count = con.execute("SELECT COUNT(*) FROM diaries").fetchone()[0]
     distinct_ids = con.execute("SELECT COUNT(DISTINCT diary_id) FROM diaries").fetchone()[0]
     assert count == distinct_ids
-    assert count == 6274
+    assert count == 23383
 
 
 def test_photos_excludes_unmatched_and_deleted():
     con = _conn()
     count = con.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
-    assert count == 12394
+    assert count == 39605
     null_lots = con.execute("SELECT COUNT(*) FROM photos WHERE lot_id IS NULL").fetchone()[0]
     assert null_lots == 0
 
@@ -45,7 +45,7 @@ def test_photos_excludes_unmatched_and_deleted():
 def test_fertilizer_applications_loaded_from_diary_fanout():
     con = _conn()
     count = con.execute("SELECT COUNT(*) FROM fertilizer_applications").fetchone()[0]
-    assert count == 29757
+    assert count == 111377
     distinct_ids = con.execute(
         "SELECT COUNT(DISTINCT application_id) FROM fertilizer_applications"
     ).fetchone()[0]

@@ -39,7 +39,7 @@ page - the engine never calls out to an LLM mid-run.
 ## Real dataset, not fabricated fixtures
 
 `data/csv/` is a real filtered export (fields, field-diaries, field-photos
-for dry-crop season 3; fields only for wet-crop season 4). Per an explicit
+for both dry-crop season 3 and wet-crop season 4). Per an explicit
 decision (see the approved plan), this PoC does **not** fabricate
 `farmers`/`contracts`/`riceid`/`lipa` data - none of the active C1-C9 rules
 depend on them, but they stay documented in the catalog schema (not in

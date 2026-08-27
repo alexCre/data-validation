@@ -41,9 +41,11 @@ FIELDS_SOURCES = {
 }
 DIARIES_SOURCES = {
     3: DATA_DIR / "field-diaries-dry-crop-2025-202608241811.csv",
+    4: DATA_DIR / "field-diaries-wet-crop-2025-202608261648.csv",
 }
 PHOTOS_SOURCES = {
     3: DATA_DIR / "field-photos-dry-crop-2025-202608241816.csv",
+    4: DATA_DIR / "field-photo-wet-crop-2025-202608261615.csv",
 }
 # Same source file as DIARIES_SOURCES: applied_date/fertilizer_type_id/etc.
 # live in the diary fan-out that load_diaries de-duplicates away, and each

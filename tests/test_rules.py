@@ -50,39 +50,39 @@ def test_all_rows_covered_by_every_rule(results, con, rules):
 
 def test_c1_first_photo_category_rule(results):
     counts = _counts(results, "C1")
-    assert counts[ResultStatus.PASS] == 3234
-    assert counts[ResultStatus.FAIL] == 1473
-    assert counts[ResultStatus.REVIEW] == 27526
+    assert counts[ResultStatus.PASS] == 9915
+    assert counts[ResultStatus.FAIL] == 3216
+    assert counts[ResultStatus.REVIEW] == 19102
 
 
 def test_c2_rice_vs_non_rice(results):
     counts = _counts(results, "C2")
-    assert counts[ResultStatus.PASS] == 31631
-    assert counts[ResultStatus.FAIL] == 207
-    assert counts[ResultStatus.REVIEW] == 395
+    assert counts[ResultStatus.PASS] == 31539
+    assert counts[ResultStatus.FAIL] == 294
+    assert counts[ResultStatus.REVIEW] == 400
 
 
 def test_c3_non_rice_vs_rice_monitoring(results):
     counts = _counts(results, "C3")
-    # No "others"-crop diary in this dataset has a non-Non-rice photo, so
-    # there are no organic failures - verified directly against the data,
-    # not assumed.
-    assert counts[ResultStatus.PASS] == 30811
-    assert counts[ResultStatus.REVIEW] == 1422
-    assert counts[ResultStatus.FAIL] == 0
+    # Wet Crop 2025 data added one genuine organic failure here (an
+    # "others"-crop diary with a rice-related photo) - previously this
+    # dataset had zero. Verified directly against the data, not assumed.
+    assert counts[ResultStatus.PASS] == 30299
+    assert counts[ResultStatus.REVIEW] == 1933
+    assert counts[ResultStatus.FAIL] == 1
 
 
 def test_c4_photos_outside_season(results):
     counts = _counts(results, "C4")
-    assert counts[ResultStatus.PASS] == 30367
-    assert counts[ResultStatus.FAIL] == 60
-    assert counts[ResultStatus.REVIEW] == 1806
+    assert counts[ResultStatus.PASS] == 29383
+    assert counts[ResultStatus.FAIL] == 528
+    assert counts[ResultStatus.REVIEW] == 2322
 
 
 def test_c5_installation_before_planting(results):
     counts = _counts(results, "C5")
-    assert counts[ResultStatus.PASS] == 32227
-    assert counts[ResultStatus.FAIL] == 6
+    assert counts[ResultStatus.PASS] == 32208
+    assert counts[ResultStatus.FAIL] == 25
     assert counts[ResultStatus.REVIEW] == 0  # season bounds are always present
 
 
@@ -95,9 +95,9 @@ def test_c6_planting_vs_straw_management_has_organic_failures(results):
 
 def test_c7_planting_outside_season(results):
     counts = _counts(results, "C7")
-    assert counts[ResultStatus.PASS] == 5537
-    assert counts[ResultStatus.FAIL] == 681
-    assert counts[ResultStatus.REVIEW] == 26015
+    assert counts[ResultStatus.PASS] == 20646
+    assert counts[ResultStatus.FAIL] == 2239
+    assert counts[ResultStatus.REVIEW] == 9348
 
 
 def test_c8_fertilizer_before_planting(results):
@@ -106,13 +106,13 @@ def test_c8_fertilizer_before_planting(results):
     # as long as another application for the same lot/season has a usable
     # date; REVIEW only remains for lot/seasons with no usable date at all.
     counts = _counts(results, "C8")
-    assert counts[ResultStatus.PASS] == 31299
-    assert counts[ResultStatus.FAIL] == 383
-    assert counts[ResultStatus.REVIEW] == 551
+    assert counts[ResultStatus.PASS] == 31021
+    assert counts[ResultStatus.FAIL] == 654
+    assert counts[ResultStatus.REVIEW] == 558
 
 
 def test_c9_fertilizer_sequence(results):
     counts = _counts(results, "C9")
-    assert counts[ResultStatus.PASS] == 5359
-    assert counts[ResultStatus.FAIL] == 183
-    assert counts[ResultStatus.REVIEW] == 26691
+    assert counts[ResultStatus.PASS] == 21727
+    assert counts[ResultStatus.FAIL] == 361
+    assert counts[ResultStatus.REVIEW] == 10145
