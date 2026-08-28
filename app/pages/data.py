@@ -16,7 +16,6 @@ from adapters.pii_policy import (
     PHOTOS_ALLOWED_COLUMNS,
 )
 from app.components.charts import geometry_coverage_chart
-from app.components.copilot_ui import render_copilot_launcher
 from app.components.state import (
     field_season_readiness_df,
     get_data_connection,
@@ -24,11 +23,7 @@ from app.components.state import (
     run_validation,
 )
 
-title_col, copilot_col = st.columns([5, 1])
-with title_col:
-    st.title("Data & Setup")
-with copilot_col:
-    render_copilot_launcher()
+st.title("Data & Setup")
 st.caption("Loaded sources for this PoC, plus running validation. No LLM is used on this page.")
 
 SEASON_LABELS = season_labels()

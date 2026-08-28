@@ -59,7 +59,6 @@ pages = {
     "": [
         st.Page("pages/dashboard.py", title="Dashboard"),
         st.Page("pages/field_review.py", title="Field Review"),
-        st.Page("pages/copilot.py", title="Copilot"),
     ],
     "Setup": [
         st.Page("pages/data.py", title="Data & Setup", default=True),

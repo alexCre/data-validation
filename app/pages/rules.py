@@ -14,7 +14,6 @@ from agents.capability_extension import CapabilityExtensionAgent, save_draft
 from agents.models import CompilationStatus
 from agents.providers.anthropic_provider import is_configured
 from agents.providers.mock_provider import MockProvider
-from app.components.copilot_ui import render_copilot_launcher
 from app.components.state import (
     delete_custom_rule,
     delete_static_rule,
@@ -31,11 +30,7 @@ from validation.dsl.validate import RuleValidationError
 from validation.engine import build_field_season_contexts, evaluate_rule_for_context, AVAILABLE_TABLES
 from validation.models import Rule, RuleStatus
 
-title_col, copilot_col = st.columns([5, 1])
-with title_col:
-    st.title("Rules")
-with copilot_col:
-    render_copilot_launcher()
+st.title("Rules")
 
 DEVELOPER_MODE = os.environ.get("DEVELOPER_MODE", "false").lower() == "true"
 

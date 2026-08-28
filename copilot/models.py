@@ -220,6 +220,28 @@ class RequestNewRuleOutput(BaseModel):
     proposed_operator_names: list[str] = Field(default_factory=list)
 
 
+# --- Tool 11: get_field_source_records ---
+
+
+class FieldSourceRecordsInput(BaseModel):
+    lot_id: str = Field(description="A plain field/lot identifier number, e.g. '123437' - never a rule id.")
+    season_id: str
+    table: str = Field(
+        description="Which raw source to drill into: 'fertilizer_applications', 'diaries', or 'photos'."
+    )
+
+
+class FieldSourceRecordsOutput(BaseModel):
+    found: bool
+    lot_id: str
+    season_id: str
+    table: str
+    records: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Raw rows for this field-season, in the same order the rule engine consumes them.",
+    )
+
+
 # --- Tool 10: get_validation_run_history ---
 
 

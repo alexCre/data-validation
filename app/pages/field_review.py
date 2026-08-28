@@ -13,13 +13,18 @@ from catalog.loader import season_labels
 from app.components.charts import readiness_status_bar
 from app.components.copilot_ui import render_copilot_launcher
 from app.components.exports import detailed_export_df, field_summary_export_df
-from app.components.state import field_season_readiness_df, get_rules, lots_attributes_df, results_df
+from app.components.state import (
+    field_season_readiness_df,
+    field_source_records,
+    get_rules,
+    lots_attributes_df,
+    results_df,
+    SOURCE_RECORD_TABLES,
+)
+from validation.engine import load_season_bounds
 
-title_col, copilot_col = st.columns([5, 1])
-with title_col:
-    st.title("Field Review")
-with copilot_col:
-    render_copilot_launcher()
+st.title("Field Review")
+render_copilot_launcher()
 st.caption("Deterministic, local CSV generation - no LLM is used on this page.")
 
 SEASON_LABELS = season_labels()
@@ -147,6 +152,25 @@ if options:
                     st.warning("**Missing data driving this result:** " + ", ".join(missing_inputs))
                 if rule:
                     st.write("**Rule description:**", rule.description)
+
+                # For FAIL/REVIEW, "Observations" above only summarizes
+                # collections (e.g. "<3 records>") - pull the actual rows
+                # this rule read for this field-season so it's clear why.
+                if rule and row["result"] in {"FAIL", "REVIEW"}:
+                    input_tables = {inp.split(".", 1)[0] for inp in rule.required_inputs}
+                    for table in sorted(input_tables & SOURCE_RECORD_TABLES.keys()):
+                        records = field_source_records(lot_id, season_id, table)
+                        st.write(f"**{table}** ({len(records)} record{'s' if len(records) != 1 else ''}):")
+                        if records:
+                            st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+                        else:
+                            st.caption("No records for this field-season.")
+                    if "season" in input_tables:
+                        bounds = load_season_bounds().get(season_id)
+                        if bounds:
+                            st.caption(
+                                f"Season window: {bounds['start_date'].isoformat()} to {bounds['end_date'].isoformat()}"
+                            )
 
 st.divider()
 st.subheader("CSV export")

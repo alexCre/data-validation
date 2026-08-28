@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import json
 
-from app.components.state import field_season_readiness_df, results_df
+from app.components.state import (
+    field_season_readiness_df,
+    field_source_records,
+    results_df,
+    SOURCE_RECORD_TABLES,
+)
 from copilot.models import (
     FieldFinding,
     FieldFindingsInput,
     FieldFindingsOutput,
+    FieldSourceRecordsInput,
+    FieldSourceRecordsOutput,
     FieldValidationSummaryInput,
     FieldValidationSummaryOutput,
 )
@@ -68,6 +75,15 @@ def get_field_findings(
     return FieldFindingsOutput(found=True, lot_id=lot_id, season_id=season_id, findings=findings)
 
 
+def get_field_source_records(lot_id: str, season_id: str, table: str) -> FieldSourceRecordsOutput:
+    if table not in SOURCE_RECORD_TABLES:
+        return FieldSourceRecordsOutput(found=False, lot_id=lot_id, season_id=season_id, table=table)
+    records = field_source_records(lot_id, season_id, table)
+    return FieldSourceRecordsOutput(
+        found=bool(records), lot_id=lot_id, season_id=season_id, table=table, records=records
+    )
+
+
 def register(registry: CopilotToolRegistry) -> None:
     registry.register(
         "get_field_validation_summary",
@@ -84,4 +100,14 @@ def register(registry: CopilotToolRegistry) -> None:
         FieldFindingsInput,
         FieldFindingsOutput,
         get_field_findings,
+    )
+    registry.register(
+        "get_field_source_records",
+        "Raw underlying records for one field-season, to drill down beyond a rule's PASS/FAIL/REVIEW "
+        "verdict into the actual values behind it - e.g. every fertilizer_applications row (applied_date, "
+        "applied_amount_kg, in application order) for a field flagged by C9, or the diaries/photos rows "
+        "behind another rule. table must be one of 'fertilizer_applications', 'diaries', 'photos'.",
+        FieldSourceRecordsInput,
+        FieldSourceRecordsOutput,
+        get_field_source_records,
     )

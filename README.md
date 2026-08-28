@@ -117,7 +117,8 @@ Reports observed throughput on the real ~32k-field-season dataset.
    field-season's deterministic reasons (including what data is missing, if
    any), download the Field Summary and Detailed Validation CSV exports
    (respecting active filters, or the full run).
-5. **Copilot** - ask it things like *"Why are so many fields failing?"*,
+5. **Ask Validation Copilot** (floating button, bottom-right, on Dashboard
+   and Field Review) - ask it things like *"Why are so many fields failing?"*,
    *"Show me C9 failures."*, *"Why did LOT-123437 fail?"* (then a follow-up
    like *"What about C9?"*), *"Download the fields failing C6."*, or
    *"Create a rule that planting must be after straw management."* - the
@@ -126,8 +127,10 @@ Reports observed throughput on the real ~32k-field-season dataset.
 
 ## Validation Copilot
 
-An additional, on-demand conversational layer (`app/pages/copilot.py`) on
-top of the existing Dashboard/Data & Setup/Rules/Field Review - it never
+An additional, on-demand conversational layer - a floating "Ask Validation
+Copilot" button on Dashboard and Field Review that opens as a popup
+(`app/components/copilot_ui.py`) - on top of the existing Dashboard/Data &
+Setup/Rules/Field Review pages. It never
 replaces them, never decides a validation outcome (PASS/FAIL/REVIEW/
 NOT_APPLICABLE stay outputs of the deterministic engine), and never
 activates a rule itself.

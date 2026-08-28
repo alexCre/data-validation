@@ -1,7 +1,7 @@
-"""Shared Validation Copilot chat UI - rendered both by the dedicated
-Copilot page (app/pages/copilot.py) and by the popup launcher any other
-page can embed (render_copilot_launcher), so the two surfaces can never
-drift apart. See agents/validation_copilot.py for the actual agent loop;
+"""Shared Validation Copilot chat UI - rendered inside the popup dialog
+opened by render_copilot_launcher(), a floating button embedded on
+Dashboard and Field Review. Popup-only by design: no separate Copilot page
+in the nav. See agents/validation_copilot.py for the actual agent loop;
 this module is presentation only."""
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ EXAMPLE_PROMPTS = [
     "Why are so many fields failing?",
     "Show me C9 failures.",
     "Why did LOT-123437 fail?",
+    "Show me the fertilizer application dates for LOT-123437.",
     "Download all failed field-seasons.",
     "Compare the latest run with the previous run.",
     "Create a rule that planting must be within 15 days after season start.",
@@ -43,8 +44,8 @@ def _rerun_here() -> None:
     """A bare st.rerun() always full-reruns the app, which - inside an
     st.dialog - dismisses the dialog before the new chat messages ever show.
     Prefer a fragment-scoped rerun (valid while genuinely inside the
-    dialog's own rerun cycle) and fall back to a full rerun on the plain
-    Copilot page, where there's no enclosing fragment."""
+    dialog's own rerun cycle) and fall back to a full rerun if called
+    outside a dialog/fragment context."""
     try:
         st.rerun(scope="fragment")
     except StreamlitAPIException:
@@ -105,6 +106,9 @@ def _render_tool_output(call) -> None:
                 st.caption(
                     f"Showing {out['returned']} of {out['total_matching']:,} matching - refine or export for the rest."
                 )
+    elif call.tool_name == "get_field_source_records":
+        if out["records"]:
+            st.dataframe(pd.DataFrame(out["records"]), use_container_width=True, hide_index=True)
     elif call.tool_name == "get_field_findings":
         if out["findings"]:
             st.dataframe(
@@ -261,9 +265,31 @@ def _copilot_dialog() -> None:
     render_copilot_chat()
 
 
+# Streamlit gives a widget's container the CSS class "st-key-<key>" when a
+# key is set - used here to pin just this one button to the bottom-right
+# corner, floating over page content, like a normal chat-widget launcher.
+_FLOATING_BUTTON_CSS = """
+<style>
+.st-key-copilot_launcher_button {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 999;
+    width: auto;
+}
+.st-key-copilot_launcher_button button {
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    padding: 0.6rem 1.1rem;
+}
+</style>
+"""
+
+
 def render_copilot_launcher(label: str = "💬 Ask Validation Copilot") -> None:
-    """A button any page can embed to open the Copilot as a popup, without
-    leaving the page (Option B from the product spec) - the dedicated
-    Copilot page (Option A) still exists separately for a full-screen view."""
+    """A floating button (fixed to the bottom-right corner, like a normal
+    chat-widget launcher) that opens the Copilot as a popup - the only way
+    to reach it, since there's no separate Copilot page in the nav."""
+    st.markdown(_FLOATING_BUTTON_CSS, unsafe_allow_html=True)
     if st.button(label, key="copilot_launcher_button"):
         _copilot_dialog()

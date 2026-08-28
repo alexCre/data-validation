@@ -2,7 +2,7 @@
 Copilot tool registry (copilot/tool_registry.py). Chooses tools, executes
 them through the registry (never directly), and returns final text plus a
 full trace of what it called - the UI decides what to show a normal user
-vs. Developer Mode (see app/pages/copilot.py).
+vs. Developer Mode (see app/components/copilot_ui.py).
 
 This agent never decides a validation outcome itself - every tool call
 reads already-computed, deterministic PASS/FAIL/REVIEW/NOT_APPLICABLE

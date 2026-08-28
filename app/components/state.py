@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 import duckdb
 import pandas as pd
@@ -202,3 +202,37 @@ def lots_attributes_df() -> pd.DataFrame:
         FROM lots
         """
     ).fetchdf()
+
+
+# The raw source tables a field-season's records can be drilled into - the
+# same ones the rule engine reads (validation/engine.py) and which have
+# already been loaded through the PII allowlist (adapters/pii_policy.py), so
+# every column on every one of these tables is safe to display/return as-is.
+SOURCE_RECORD_TABLES = {
+    "fertilizer_applications": "application_id",
+    "diaries": "diary_id",
+    "photos": "photo_id",
+}
+
+
+def field_source_records(lot_id: str, season_id: str, table: str) -> list[dict]:
+    """Raw rows from one source table for one field-season, in the same
+    order the rule engine consumes them - used both by Field Review's detail
+    expander (to show the actual values behind a FAIL/REVIEW) and by the
+    Copilot's get_field_source_records tool."""
+    order_field = SOURCE_RECORD_TABLES.get(table)
+    if order_field is None:
+        return []
+    con = get_data_connection()
+    rows = con.execute(
+        f"SELECT * FROM {table} WHERE lot_id = ? AND CAST(season_id AS VARCHAR) = ? ORDER BY {order_field}",
+        [lot_id, season_id],
+    ).fetchall()
+    columns = [c[0] for c in con.description]
+    return [
+        {
+            col: (value.isoformat() if isinstance(value, (date, datetime)) else value)
+            for col, value in zip(columns, row)
+        }
+        for row in rows
+    ]

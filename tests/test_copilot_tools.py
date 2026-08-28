@@ -161,6 +161,32 @@ def test_field_findings_result_filter(registry, run_id):
     assert all(f.result == "FAIL" for f in out.findings)
 
 
+# --- get_field_source_records ---
+
+
+def test_field_source_records_returns_raw_fertilizer_rows(registry):
+    out = registry.call(
+        "get_field_source_records", {"lot_id": "123437", "season_id": "3", "table": "fertilizer_applications"}
+    )
+    assert out.found is True
+    assert len(out.records) > 0
+    assert "applied_date" in out.records[0]
+    assert "applied_amount_kg" in out.records[0]
+
+
+def test_field_source_records_unknown_table_not_found(registry):
+    out = registry.call("get_field_source_records", {"lot_id": "123437", "season_id": "3", "table": "farmers"})
+    assert out.found is False
+    assert out.records == []
+
+
+def test_field_source_records_unknown_field_not_found(registry):
+    out = registry.call(
+        "get_field_source_records", {"lot_id": "no-such-lot", "season_id": "3", "table": "diaries"}
+    )
+    assert out.found is False
+
+
 # --- get_rule_details ---
 
 
