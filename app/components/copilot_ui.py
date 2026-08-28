@@ -266,15 +266,18 @@ def _copilot_dialog() -> None:
 
 
 # Streamlit gives a widget's container the CSS class "st-key-<key>" when a
-# key is set - used here to pin just this one button to the bottom-right
+# key is set - used here to pin just this one button to the bottom-left
 # corner, floating over page content, like a normal chat-widget launcher.
+# z-index is set very high (not just 999) because Streamlit's sidebar sits
+# in its own stacking context on the same (left) side of the screen - a
+# merely-high z-index left it rendered but hidden behind the sidebar.
 _FLOATING_BUTTON_CSS = """
 <style>
 .st-key-copilot_launcher_button {
     position: fixed;
     bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 999;
+    left: 1.5rem;
+    z-index: 999999;
     width: auto;
 }
 .st-key-copilot_launcher_button button {
@@ -287,7 +290,7 @@ _FLOATING_BUTTON_CSS = """
 
 
 def render_copilot_launcher(label: str = "💬 Ask Validation Copilot") -> None:
-    """A floating button (fixed to the bottom-right corner, like a normal
+    """A floating button (fixed to the bottom-left corner, like a normal
     chat-widget launcher) that opens the Copilot as a popup - the only way
     to reach it, since there's no separate Copilot page in the nav."""
     st.markdown(_FLOATING_BUTTON_CSS, unsafe_allow_html=True)

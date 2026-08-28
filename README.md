@@ -117,7 +117,7 @@ Reports observed throughput on the real ~32k-field-season dataset.
    field-season's deterministic reasons (including what data is missing, if
    any), download the Field Summary and Detailed Validation CSV exports
    (respecting active filters, or the full run).
-5. **Ask Validation Copilot** (floating button, bottom-right, on Dashboard
+5. **Ask Validation Copilot** (floating button, bottom-left, on Dashboard
    and Field Review) - ask it things like *"Why are so many fields failing?"*,
    *"Show me C9 failures."*, *"Why did LOT-123437 fail?"* (then a follow-up
    like *"What about C9?"*), *"Download the fields failing C6."*, or
