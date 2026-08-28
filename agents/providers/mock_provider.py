@@ -9,12 +9,15 @@ touching agents.rule_authoring or agents.capability_extension.
 
 from __future__ import annotations
 
+import json
 import re
+import uuid
 from typing import TypeVar
 
 from pydantic import BaseModel
 
 from agents.models import CapabilityGapSpec, CompilationStatus, GeneratedOperatorDraft, RuleCompilationResult
+from agents.providers.base import ConversationTurn, ToolCallRequest
 from validation.models import ExpressionNode, FieldRef
 
 T = TypeVar("T", bound=BaseModel)
@@ -28,6 +31,16 @@ _CAPABILITY_GAP_TRIGGERS = [
 ]
 
 _AFTER_PATTERN = re.compile(r"(\w[\w\s]*?)\s+(?:must be|should be)?\s*after\s+(\w[\w\s]*)", re.IGNORECASE)
+# Strips a leading "create/add a (new) rule/validation (that/requiring/saying)"
+# request wrapper (e.g. from the Copilot's request_new_rule tool) so the
+# X-after-Y match below isn't thrown off by it - e.g. "Create a rule that
+# planting must be after straw management" -> "planting must be after straw
+# management".
+_RULE_REQUEST_PREFIX = re.compile(
+    r"^\s*(?:please\s+)?(?:create|add|make)\s+a\s+(?:new\s+)?(?:rule|validation)\b"
+    r"(?:\s+(?:that|requiring|saying|stating))?\s*:?\s*",
+    re.IGNORECASE,
+)
 
 
 def _extract_user_rule(user_prompt: str) -> str:
@@ -47,8 +60,68 @@ class MockProvider:
             return self._generated_draft(user_prompt)  # type: ignore[return-value]
         raise NotImplementedError(f"MockProvider has no heuristic for {response_model!r}")
 
+    def converse(self, system_prompt: str, messages: list[dict], tools: list[dict]) -> ConversationTurn:
+        """Deterministic keyword routing over the latest message, enough to
+        demonstrate/test the Copilot's tool-selection behavior offline: if
+        the last message is a tool_result, summarize it and stop (one tool
+        call per user turn, never chaining further in the mock); otherwise
+        route the newest user text to the one tool it most plausibly needs."""
+        last = messages[-1] if messages else None
+        if last is not None and _is_tool_result_message(last):
+            return ConversationTurn(text=_summarize_tool_result(last), tool_calls=[])
+
+        text = _latest_user_text(messages)
+        lowered = text.lower()
+        tool_names = {t["name"] for t in tools}
+
+        def _call(name: str, arguments: dict) -> ConversationTurn:
+            if name not in tool_names:
+                return ConversationTurn(text=f"(mock) no tool named {name!r} is available.")
+            return ConversationTurn(tool_calls=[ToolCallRequest(id=f"mock_{uuid.uuid4().hex[:8]}", name=name, arguments=arguments)])
+
+        rule_keywords = ("create a rule", "add a rule", "new rule", "add a validation", "create a validation")
+        if any(kw in lowered for kw in rule_keywords):
+            return _call("request_new_rule", {"rule_text": text})
+
+        if "download" in lowered or "export" in lowered:
+            rule_match = re.search(r"\bC\d+\b", text)
+            args = {"mode": "FIELD_SUMMARY"}
+            if rule_match:
+                args["rule_id"] = rule_match.group(0)
+            if "fail" in lowered:
+                args["result"] = "FAIL"
+            elif "review" in lowered:
+                args["result"] = "REVIEW"
+            return _call("export_validation_csv", args)
+
+        lot_match = re.search(r"\bLOT-(\S+)\b", text, re.IGNORECASE) or re.search(r"\b(\d{5,})\b", text)
+        if lot_match and ("why" in lowered or "fail" in lowered or "issue" in lowered):
+            # This dataset's lot_id is a bare numeric string (see catalog/schema.yaml) -
+            # a "LOT-<id>" reference (as used in this product's examples) normalizes to
+            # just <id>.
+            return _call("get_field_findings", {"lot_id": lot_match.group(1), "season_id": "3"})
+
+        rule_match = re.search(r"\bC\d+\b", text)
+        if rule_match and ("show" in lowered or "fail" in lowered):
+            return _call("get_validation_results", {"rule_id": rule_match.group(0), "result": "FAIL", "limit": 20})
+
+        if "top" in lowered and ("issue" in lowered or "problem" in lowered):
+            return _call("get_top_validation_issues", {"limit": 5})
+
+        if "why" in lowered and "fail" in lowered:
+            return _call("get_validation_summary", {})
+
+        if "compare" in lowered:
+            return _call("get_validation_run_history", {"limit": 5})
+
+        return ConversationTurn(
+            text="(offline mock Copilot) I couldn't map that to a supported action - try asking about "
+            "validation results, a specific field, or say 'create a rule that ...'."
+        )
+
     def _compile_rule(self, user_prompt: str) -> RuleCompilationResult:
         rule_text = _extract_user_rule(user_prompt)
+        rule_text = _RULE_REQUEST_PREFIX.sub("", rule_text).strip() or rule_text
         lowered = rule_text.lower()
 
         for keywords, capability, operator_name in _CAPABILITY_GAP_TRIGGERS:
@@ -151,6 +224,55 @@ class MockProvider:
             metadata={"category": "draft", "generated_by": "MockProvider"},
             notes="Draft stub only - developer must implement the real logic before promotion.",
         )
+
+
+def _is_tool_result_message(message: dict) -> bool:
+    content = message.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content)
+
+
+def _summarize_tool_result(message: dict) -> str:
+    for block in message["content"]:
+        if isinstance(block, dict) and block.get("type") == "tool_result":
+            try:
+                data = json.loads(block["content"])
+            except (TypeError, ValueError, KeyError):
+                return "(mock) Got a tool result I couldn't parse."
+            if isinstance(data, dict):
+                if "total_field_seasons" in data:
+                    return (
+                        f"{data.get('total_field_seasons', 0)} field-seasons: "
+                        f"{data.get('ready_count', 0)} READY, {data.get('review_required_count', 0)} "
+                        f"REVIEW_REQUIRED, {data.get('validation_failed_count', 0)} VALIDATION_FAILED."
+                    )
+                if "total_matching" in data:
+                    return f"{data.get('total_matching', 0)} matching records ({data.get('returned', 0)} shown)."
+                if "row_count" in data and "file_path" in data:
+                    return f"{data.get('row_count', 0)} records exported."
+                if data.get("found") is False:
+                    return "I couldn't find that field-season."
+                if "findings" in data:
+                    return f"Found {len(data.get('findings', []))} rule result(s) for that field-season."
+                if "status" in data and data.get("status") in {"COMPILED", "NEEDS_CLARIFICATION", "UNSUPPORTED_CAPABILITY"}:
+                    return f"Rule request status: {data['status']}."
+            return "(mock) Here's what I found."
+    return "(mock) Got a tool result."
+
+
+def _latest_user_text(messages: list[dict]) -> str:
+    for message in reversed(messages):
+        if message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            texts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+            if texts:
+                return " ".join(texts)
+    return ""
 
 
 def _guess_field(phrase: str) -> str | None:

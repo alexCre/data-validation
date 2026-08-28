@@ -11,9 +11,15 @@ import streamlit as st
 
 from catalog.loader import season_labels
 from app.components.charts import readiness_status_bar
+from app.components.copilot_ui import render_copilot_launcher
+from app.components.exports import detailed_export_df, field_summary_export_df
 from app.components.state import field_season_readiness_df, get_rules, lots_attributes_df, results_df
 
-st.title("Field Review")
+title_col, copilot_col = st.columns([5, 1])
+with title_col:
+    st.title("Field Review")
+with copilot_col:
+    render_copilot_launcher()
 st.caption("Deterministic, local CSV generation - no LLM is used on this page.")
 
 SEASON_LABELS = season_labels()
@@ -22,7 +28,7 @@ LABEL_TO_SEASON_ID = {label: season_id for season_id, label in SEASON_LABELS.ite
 # Session-scoped, not the persisted store's latest run - see Dashboard for why.
 run_id = st.session_state.get("validation_run_id")
 if run_id is None:
-    st.info("No validation run yet. Go to the Dashboard and click Run Data Validation.")
+    st.info("No validation run yet. Go to **Data & Setup** to select seasons and click Run Data Validation.")
     st.stop()
 
 detail_df = results_df(run_id)
@@ -32,7 +38,9 @@ rules = {r.rule_id: r for r in get_rules(validate=False)}
 st.subheader("Filters")
 c1, c2, c3 = st.columns(3)
 with c1:
-    rule_filter = st.multiselect("Rule", sorted(detail_df["rule_id"].unique()))
+    # Fixed key so the Copilot page can pre-set this filter (st.session_state
+    # written before this widget renders) via an "Open in Field Review" link.
+    rule_filter = st.multiselect("Rule", sorted(detail_df["rule_id"].unique()), key="field_review_rule_filter")
 with c2:
     readiness_filter = st.multiselect("Readiness", sorted(readiness_df["readiness"].unique()))
 with c3:
@@ -148,67 +156,19 @@ export_scope = st.radio("Scope", ["Filtered results", "Full current validation r
 export_df = detail_df if export_scope == "Full current validation run" else filtered
 export_readiness = readiness_df if export_scope == "Full current validation run" else readiness_filtered
 
-field_summary = export_readiness.rename(
-    columns={"fail_rule_ids": "failed_rule_ids", "review_rule_ids": "review_rule_ids"}
-).copy()
-field_summary["num_fail"] = field_summary["fail_count"]
-field_summary["num_review"] = field_summary["review_count"]
-field_summary["primary_issue"] = field_summary["failed_rule_ids"].where(
-    field_summary["failed_rule_ids"] != "", field_summary["review_rule_ids"]
-)
-field_summary["season"] = field_summary["season_id"].map(lambda s: SEASON_LABELS.get(s, s))
-field_summary_export = field_summary[
-    [
-        "lot_id",
-        "field_name",
-        "tsag",
-        "ia",
-        "ris",
-        "season_id",
-        "season",
-        "readiness",
-        "failed_rule_ids",
-        "review_rule_ids",
-        "num_fail",
-        "num_review",
-        "primary_issue",
-        "validation_run_id",
-    ]
-]
-
 col1, col2 = st.columns(2)
 with col1:
     st.download_button(
         "Download Field Summary Export (CSV)",
-        field_summary_export.to_csv(index=False).encode("utf-8"),
+        field_summary_export_df(export_readiness, SEASON_LABELS).to_csv(index=False).encode("utf-8"),
         file_name=f"field_summary_{run_id}.csv",
         mime="text/csv",
         type="primary",
     )
 with col2:
-    detailed_export = export_df.merge(lots_attributes_df(), on=["lot_id", "season_id"], how="left")
-    detailed_export["season"] = detailed_export["season_id"].map(lambda s: SEASON_LABELS.get(s, s))
-    detailed_export = detailed_export[
-        [
-            "lot_id",
-            "field_name",
-            "tsag",
-            "ia",
-            "ris",
-            "season_id",
-            "season",
-            "rule_id",
-            "rule_version",
-            "result",
-            "reason",
-            "observations",
-            "validation_run_id",
-            "evaluated_at",
-        ]
-    ]
     st.download_button(
         "Download Detailed Validation Export (CSV)",
-        detailed_export.to_csv(index=False).encode("utf-8"),
+        detailed_export_df(export_df, lots_attributes_df(), SEASON_LABELS).to_csv(index=False).encode("utf-8"),
         file_name=f"detailed_validation_{run_id}.csv",
         mime="text/csv",
         type="primary",

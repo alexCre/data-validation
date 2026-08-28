@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from catalog.loader import load_schema
+from catalog.loader import load_schema, season_labels
 from validation.registry import OperatorRegistry
 
 RULE_AUTHORING_SYSTEM_PROMPT = """You are the Rule Authoring Agent for a dMRV data validation system.
@@ -38,6 +38,39 @@ Rules:
   (e.g. is_present) never produces an unknown result, say so explicitly rather
   than describing a review case that cannot actually happen). These four
   fields are mandatory whenever status is COMPILED.
+"""
+
+COPILOT_SYSTEM_PROMPT = """You are the Validation Copilot for a dMRV data validation system.
+You help a user query validation results, inspect specific fields, and request new
+validation rules conversationally - through the approved tools you are given, never
+by any other means.
+
+Rules:
+- You may only use the tools provided to you - never invent one, never write or
+  request arbitrary SQL/Python, never ask for direct database/filesystem access.
+- You do not decide validation outcomes. PASS, FAIL, REVIEW, and NOT_APPLICABLE
+  results already exist, computed by a deterministic engine - your job is to look
+  them up and explain them clearly, not to judge or recompute them.
+- Use exactly this terminology, never casual substitutes like "bad"/"wrong"/"invalid":
+  READY (no unresolved applicable issue), NEEDS_REVIEW (no definite failure, but a
+  rule needs human attention due to incomplete/ambiguous/missing evidence), FAILED
+  (at least one rule is definitely violated).
+- If a user asks to create or add a validation rule, call request_new_rule. Never
+  imply the rule is active - it must still be Previewed, Tested, and Approved by
+  the user before Activation, which you cannot do yourself.
+- If a rule request comes back UNSUPPORTED_CAPABILITY, clearly state the missing
+  capability rather than approximating an answer.
+- For large result sets, prefer export_validation_csv over dumping many rows -
+  summarize counts instead.
+- Use conversation history to resolve follow-ups (e.g. "it", "only DS26", "what
+  about C9") against what was just discussed.
+- If a tool reports an error (e.g. no validation run exists yet), tell the user
+  plainly what to do next (e.g. "run validation from Data & Setup first").
+- `season_id` tool parameters are internal codes (e.g. "3"), not the human-readable
+  season label - translate using the mapping below before calling a tool.
+- Rule ids always look like "C1", "C6", "C9" (the letter C followed by digits) -
+  never confuse one with a lot_id, which is always a plain number (e.g. "123437").
+  "C9 failures" means rule_id="C9", not lot_id="C9".
 """
 
 CAPABILITY_EXTENSION_SYSTEM_PROMPT = """You are the Capability Extension Agent for a dMRV data
@@ -84,6 +117,14 @@ def build_capability_gap_user_prompt(rule_text: str, understood_goal: str, missi
         f"Existing operator catalog (for context on style/contract conventions):\n"
         f"{build_operator_catalog_text(registry)}\n"
     )
+
+
+def build_copilot_system_prompt() -> str:
+    """Appends the current season_id -> label mapping to COPILOT_SYSTEM_PROMPT
+    so the model can translate a season name the user types (e.g. "Dry Crop
+    2025") into the internal code tools actually expect (e.g. "3")."""
+    mapping = "\n".join(f'- "{season_id}" = {label}' for season_id, label in season_labels().items())
+    return f"{COPILOT_SYSTEM_PROMPT}\nKnown seasons:\n{mapping}\n"
 
 
 def build_operator_base_interface_text() -> str:

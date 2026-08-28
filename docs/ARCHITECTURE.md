@@ -21,20 +21,28 @@ rules/*.yaml --validation.dsl.loader--> validation.models.Rule
                                                 |
                                                 v
                           persistence.duckdb_store (rule_versions,
-                          validation_runs, validation_results)
+                          validation_runs, validation_results,
+                          copilot_tool_calls)
                                                 |
                                                 v
                           app/streamlit_app.py + app/pages/*
-                          (Dashboard, Data, Rules, Field Review)
+                     (Dashboard, Data & Setup, Rules, Field Review, Copilot)
 ```
 
-The Rule Authoring Agent and Capability Extension Agent (`agents/`) sit
-beside this pipeline, not inside it: they only ever see
-`catalog/schema.yaml` + the operator registry's metadata + the user's rule
-text (see `agents/prompts.py` and `tests/test_llm_privacy_boundary.py`).
-Their only way to affect the deterministic pipeline is by producing a typed
-`Rule` that a developer/user explicitly saves and activates via the Rules
-page - the engine never calls out to an LLM mid-run.
+The Rule Authoring Agent, Capability Extension Agent, and Validation
+Copilot (`agents/`) sit beside this pipeline, not inside it - the engine
+never calls out to an LLM mid-run. Rule Authoring and Capability Extension
+only ever see `catalog/schema.yaml` + the operator registry's metadata +
+the user's rule text (see `agents/prompts.py` and
+`tests/test_llm_privacy_boundary.py`); their only way to affect the
+deterministic pipeline is by producing a typed `Rule` that a
+developer/user explicitly saves and activates via the Rules page. The
+Copilot additionally sees *structured, already-computed* validation
+findings (never raw CSV rows) through its fixed tool registry
+(`copilot/tool_registry.py`) - it can query and export, and can hand a rule
+request to the Rule Authoring Agent, but has no tool that writes to
+`validation_results` or activates a rule (see the README's
+[Validation Copilot](../README.md#validation-copilot) section).
 
 ## Real dataset, not fabricated fixtures
 

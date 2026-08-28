@@ -6,6 +6,8 @@ from typing import TypeVar
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from agents.providers.base import ConversationTurn, ToolCallRequest
+
 # Loaded here (not just documented in README) so ANTHROPIC_API_KEY/DMRV_LLM_MODEL/
 # DEVELOPER_MODE from a local .env reach os.environ regardless of entry point
 # (Streamlit app, a script, tests) - never overrides a real env var already set.
@@ -57,6 +59,24 @@ class AnthropicProvider:
                     )
                 return response_model.model_validate(block.input)
         raise RuntimeError("Anthropic response did not include the expected tool_use block")
+
+    def converse(self, system_prompt: str, messages: list[dict], tools: list[dict]) -> ConversationTurn:
+        response = self._client.messages.create(
+            model=self._model,
+            max_tokens=2048,
+            system=system_prompt,
+            messages=messages,
+            tools=tools,
+            tool_choice={"type": "auto"},
+        )
+        text_parts: list[str] = []
+        tool_calls: list[ToolCallRequest] = []
+        for block in response.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+            elif block.type == "tool_use":
+                tool_calls.append(ToolCallRequest(id=block.id, name=block.name, arguments=block.input))
+        return ConversationTurn(text="\n".join(text_parts) if text_parts else None, tool_calls=tool_calls)
 
 
 def is_configured() -> bool:

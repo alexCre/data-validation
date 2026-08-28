@@ -18,9 +18,14 @@ from app.components.charts import (
     STATUS_CRITICAL,
     STATUS_WARNING,
 )
+from app.components.copilot_ui import render_copilot_launcher
 from app.components.state import field_season_readiness_df, get_rules, results_df
 
-st.title("Dashboard")
+title_col, copilot_col = st.columns([5, 1])
+with title_col:
+    st.title("Dashboard")
+with copilot_col:
+    render_copilot_launcher()
 
 SEASON_LABELS = season_labels()  # {"3": "Dry Crop 2025", "4": "Wet Crop 2025"}
 

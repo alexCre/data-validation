@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS generated_draft_metadata (
     created_at TIMESTAMP,
     promoted_at TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS copilot_tool_calls (
+    session_id VARCHAR,
+    turn INTEGER,
+    step INTEGER,
+    tool_name VARCHAR,
+    arguments JSON,
+    success BOOLEAN,
+    error VARCHAR,
+    called_at TIMESTAMP
+);
 """
 
 
@@ -200,3 +211,104 @@ def latest_run_id(con: duckdb.DuckDBPyConnection) -> str | None:
         "SELECT validation_run_id FROM validation_runs ORDER BY finished_at DESC LIMIT 1"
     ).fetchone()
     return row[0] if row else None
+
+
+def list_runs(con: duckdb.DuckDBPyConnection, limit: int = 20) -> list[dict]:
+    """Recent validation runs, most recent first, with readiness counts
+    computed per run (a run has no stored season_id/readiness of its own -
+    only validation_results does) - used by the Copilot's run-history and
+    run-comparison tools."""
+    rows = con.execute(
+        """
+        WITH recent_runs AS (
+            SELECT validation_run_id, started_at, finished_at, rule_ids, row_count
+            FROM validation_runs
+            ORDER BY finished_at DESC
+            LIMIT ?
+        ),
+        per_lot AS (
+            SELECT validation_run_id, lot_id, season_id,
+                   MAX(CASE WHEN result = 'FAIL' THEN 1 ELSE 0 END) AS has_fail,
+                   MAX(CASE WHEN result = 'REVIEW' THEN 1 ELSE 0 END) AS has_review
+            FROM validation_results
+            WHERE validation_run_id IN (SELECT validation_run_id FROM recent_runs)
+            GROUP BY 1, 2, 3
+        ),
+        readiness AS (
+            SELECT
+                validation_run_id,
+                COUNT(*) AS field_season_count,
+                SUM(CASE WHEN has_fail = 1 THEN 1 ELSE 0 END) AS failed_count,
+                SUM(CASE WHEN has_fail = 0 AND has_review = 1 THEN 1 ELSE 0 END) AS review_count,
+                SUM(CASE WHEN has_fail = 0 AND has_review = 0 THEN 1 ELSE 0 END) AS ready_count,
+                string_agg(DISTINCT season_id, ',') AS season_ids
+            FROM per_lot
+            GROUP BY 1
+        )
+        SELECT
+            r.validation_run_id, r.started_at, r.finished_at, r.rule_ids, r.row_count,
+            COALESCE(rd.field_season_count, 0), COALESCE(rd.ready_count, 0),
+            COALESCE(rd.review_count, 0), COALESCE(rd.failed_count, 0), rd.season_ids
+        FROM recent_runs r
+        LEFT JOIN readiness rd ON rd.validation_run_id = r.validation_run_id
+        ORDER BY r.finished_at DESC
+        """,
+        [limit],
+    ).fetchall()
+    return [
+        {
+            "validation_run_id": r[0],
+            "started_at": r[1],
+            "finished_at": r[2],
+            "rule_count": len(json.loads(r[3])) if r[3] else 0,
+            "row_count": r[4],
+            "field_season_count": r[5],
+            "ready_count": r[6],
+            "review_count": r[7],
+            "failed_count": r[8],
+            "season_ids": r[9].split(",") if r[9] else [],
+        }
+        for r in rows
+    ]
+
+
+def save_copilot_tool_call(
+    con: duckdb.DuckDBPyConnection,
+    session_id: str,
+    turn: int,
+    step: int,
+    tool_name: str,
+    arguments: dict,
+    success: bool,
+    error: str | None,
+    called_at: datetime,
+) -> None:
+    con.execute(
+        "INSERT INTO copilot_tool_calls VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [session_id, turn, step, tool_name, json.dumps(arguments, default=str), success, error, called_at],
+    )
+
+
+def list_copilot_tool_calls(con: duckdb.DuckDBPyConnection, session_id: str, limit: int = 100) -> list[dict]:
+    rows = con.execute(
+        """
+        SELECT turn, step, tool_name, arguments, success, error, called_at
+        FROM copilot_tool_calls
+        WHERE session_id = ?
+        ORDER BY called_at DESC
+        LIMIT ?
+        """,
+        [session_id, limit],
+    ).fetchall()
+    return [
+        {
+            "turn": r[0],
+            "step": r[1],
+            "tool_name": r[2],
+            "arguments": json.loads(r[3]) if r[3] else {},
+            "success": r[4],
+            "error": r[5],
+            "called_at": r[6],
+        }
+        for r in rows
+    ]
