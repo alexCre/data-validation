@@ -202,12 +202,19 @@ def field_season_readiness_df(run_id: str | None = None) -> pd.DataFrame:
 
 
 @st.cache_data
-def lots_attributes_df() -> pd.DataFrame:
+def lots_attributes_df(region: str | None = None) -> pd.DataFrame:
     """lot_id/season_id -> the lot-identifying attributes Field Review
     filters/displays on (field name, TSAG, IA, RIS) instead of raw
     field_id. season_id is cast to VARCHAR to match validation_results'
-    (and readiness_df's) string season_id for joining."""
-    con = get_data_connection()
+    (and readiness_df's) string season_id for joining.
+
+    `region` must be passed explicitly (rather than read from
+    current_region() inside the function) so st.cache_data's argument-based
+    cache key actually varies per region - otherwise the first region to
+    populate the cache would serve its TSAG/IA/RIS/field-name values to
+    every other region's session too."""
+    region = region or current_region()
+    con = _data_connection_for(region)
     return con.execute(
         """
         SELECT

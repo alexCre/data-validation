@@ -14,6 +14,7 @@ from app.components.charts import readiness_status_bar
 from app.components.copilot_ui import render_copilot_launcher
 from app.components.exports import detailed_export_df, field_summary_export_df
 from app.components.state import (
+    current_region,
     field_season_readiness_df,
     field_source_records,
     get_rules,
@@ -37,7 +38,9 @@ if run_id is None:
     st.stop()
 
 detail_df = results_df(run_id)
-readiness_df = field_season_readiness_df(run_id).merge(lots_attributes_df(), on=["lot_id", "season_id"], how="left")
+readiness_df = field_season_readiness_df(run_id).merge(
+    lots_attributes_df(current_region()), on=["lot_id", "season_id"], how="left"
+)
 rules = {r.rule_id: r for r in get_rules(validate=False)}
 
 st.subheader("Filters")
@@ -192,7 +195,7 @@ with col1:
 with col2:
     st.download_button(
         "Download Detailed Validation Export (CSV)",
-        detailed_export_df(export_df, lots_attributes_df(), SEASON_LABELS).to_csv(index=False).encode("utf-8"),
+        detailed_export_df(export_df, lots_attributes_df(current_region()), SEASON_LABELS).to_csv(index=False).encode("utf-8"),
         file_name=f"detailed_validation_{run_id}.csv",
         mime="text/csv",
         type="primary",
