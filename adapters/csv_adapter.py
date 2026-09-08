@@ -32,25 +32,102 @@ from adapters.pii_policy import (
     PHOTOS_ALLOWED_COLUMNS,
 )
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "csv"
+DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
-# season_id -> source file. Only what's actually present in the export.
-FIELDS_SOURCES = {
-    3: DATA_DIR / "fields-dry-crop-2025-202608241808.csv",
-    4: DATA_DIR / "fields-wet-crop-2025-202608241809.csv",
+# Each region has its own data/<region>/csv export directory. New regions
+# just need a folder here - no code change - as long as filenames follow
+# the same "<prefix>-<dry|wet>-crop-<year>-<timestamp>.csv" convention as the
+# original Pangasinan export.
+REGIONS = ("pangasinan", "cagayan")
+DEFAULT_REGION = "pangasinan"
+
+# region -> {season_id: filename season code}, used to find that season's
+# file within the region's csv dir. Each region is pinned to the catalog
+# seasons (see catalog/season_bounds.yaml) its data actually covers -
+# Pangasinan's export uses "dry"/"wet" in the filename for its 2025 seasons;
+# Cagayan's export uses "ds2026"/"ws2026" ("dry/wet season 2026") for its
+# 2026 seasons.
+_REGION_SEASON_TAGS = {
+    "pangasinan": {3: "dry", 4: "wet"},
+    "cagayan": {5: "ds2026", 6: "ws2026"},
 }
-DIARIES_SOURCES = {
-    3: DATA_DIR / "field-diaries-dry-crop-2025-202608241811.csv",
-    4: DATA_DIR / "field-diaries-wet-crop-2025-202608261648.csv",
+
+# region -> table -> filename prefix template(s) (with a `{tag}` placeholder
+# for the season code above). Each region's export uses a different naming
+# convention, so these are looked up per region rather than shared.
+_REGION_SOURCE_PATTERNS = {
+    "pangasinan": {
+        "fields": ["fields-{tag}-crop-"],
+        "diaries": ["field-diaries-{tag}-crop-"],
+        "photos": ["field-photo-{tag}-crop-", "field-photos-{tag}-crop-"],
+    },
+    "cagayan": {
+        "fields": ["field-{tag}-cagayan-"],
+        "diaries": ["field-diary-{tag}-cagayan-"],
+        "photos": ["field-photo-{tag}-cagayan-"],
+    },
 }
-PHOTOS_SOURCES = {
-    3: DATA_DIR / "field-photos-dry-crop-2025-202608241816.csv",
-    4: DATA_DIR / "field-photo-wet-crop-2025-202608261615.csv",
-}
-# Same source file as DIARIES_SOURCES: applied_date/fertilizer_type_id/etc.
-# live in the diary fan-out that load_diaries de-duplicates away, and each
-# row is distinct once field_fertilizer_application_id is included.
-FERTILIZER_SOURCES = DIARIES_SOURCES
+
+
+def region_csv_dir(region: str) -> Path:
+    return DATA_ROOT / region / "csv"
+
+
+def region_season_ids(region: str) -> list[int]:
+    """The catalog season_ids (see catalog/season_bounds.yaml) this region's
+    data is scoped to, e.g. [5, 6] (Dry/Wet Crop 2026) for Cagayan."""
+    return list(_REGION_SEASON_TAGS.get(region, _REGION_SEASON_TAGS[DEFAULT_REGION]))
+
+
+def _latest_match(directory: Path, prefix: str) -> Path | None:
+    matches = sorted(directory.glob(f"{prefix}*.csv"))
+    return matches[-1] if matches else None
+
+
+def _sources_for(region: str, table: str) -> dict[int, Path]:
+    """Returns only the season_ids that actually have a matching file for
+    `table` ("fields", "diaries", or "photos") in this region - a region
+    missing a season's export (e.g. Cagayan before its wet-season 2026 data
+    lands) simply omits that season_id."""
+    directory = region_csv_dir(region)
+    season_tags = _REGION_SEASON_TAGS.get(region, _REGION_SEASON_TAGS[DEFAULT_REGION])
+    patterns = _REGION_SOURCE_PATTERNS.get(region, _REGION_SOURCE_PATTERNS[DEFAULT_REGION])[table]
+    sources: dict[int, Path] = {}
+    for season_id, tag in season_tags.items():
+        for prefix_template in patterns:
+            match = _latest_match(directory, prefix_template.format(tag=tag))
+            if match is not None:
+                sources[season_id] = match
+                break
+    return sources
+
+
+def fields_sources(region: str = DEFAULT_REGION) -> dict[int, Path]:
+    return _sources_for(region, "fields")
+
+
+def diaries_sources(region: str = DEFAULT_REGION) -> dict[int, Path]:
+    return _sources_for(region, "diaries")
+
+
+def photos_sources(region: str = DEFAULT_REGION) -> dict[int, Path]:
+    return _sources_for(region, "photos")
+
+
+def fertilizer_sources(region: str = DEFAULT_REGION) -> dict[int, Path]:
+    # Same source file as diaries_sources: applied_date/fertilizer_type_id/
+    # etc. live in the diary fan-out that load_diaries de-duplicates away,
+    # and each row is distinct once field_fertilizer_application_id is
+    # included.
+    return diaries_sources(region)
+
+
+# Back-compat module-level constants (default region), used by tests and
+# scripts that don't care about region selection.
+FIELDS_SOURCES = fields_sources()
+DIARIES_SOURCES = diaries_sources()
+PHOTOS_SOURCES = photos_sources()
+FERTILIZER_SOURCES = fertilizer_sources()
 
 
 def get_connection(database: str = ":memory:") -> duckdb.DuckDBPyConnection:
@@ -66,10 +143,29 @@ def _select_allowed(allowed_columns: list[str], rename: dict[str, str] | None = 
     return ", ".join(parts)
 
 
-def load_lots(con: duckdb.DuckDBPyConnection) -> None:
+_EMPTY_LOTS_SQL = """
+    SELECT
+        CAST(NULL AS VARCHAR) AS lot_id, CAST(NULL AS INTEGER) AS season_id,
+        CAST(NULL AS VARCHAR) AS farmer_id, CAST(NULL AS VARCHAR) AS unique_name,
+        CAST(NULL AS VARCHAR) AS group_id, CAST(NULL AS VARCHAR) AS geometry_wkt,
+        CAST(NULL AS VARCHAR) AS geometry_crs, CAST(NULL AS VARCHAR) AS tenurial_status,
+        CAST(NULL AS DOUBLE) AS declared_area_ha, CAST(NULL AS DOUBLE) AS geojson_area_ha_reported,
+        CAST(NULL AS VARCHAR) AS region_id, CAST(NULL AS VARCHAR) AS area_id,
+        CAST(NULL AS VARCHAR) AS is_validated, CAST(NULL AS VARCHAR) AS physical_field_id,
+        CAST(NULL AS VARCHAR) AS irrigation_system, CAST(NULL AS VARCHAR) AS irrigators_association,
+        CAST(NULL AS VARCHAR) AS tsag
+    WHERE 1 = 0
+"""
+
+
+def load_lots(con: duckdb.DuckDBPyConnection, sources: dict[int, Path] | None = None) -> None:
+    sources = FIELDS_SOURCES if sources is None else sources
+    if not sources:
+        con.execute(f"CREATE OR REPLACE TABLE lots AS {_EMPTY_LOTS_SQL}")
+        return
     select_cols = _select_allowed(FIELDS_ALLOWED_COLUMNS, FIELDS_RENAME)
     unions = []
-    for season_id, path in FIELDS_SOURCES.items():
+    for season_id, path in sources.items():
         unions.append(
             f"""
             SELECT {select_cols}, {season_id} AS season_id
@@ -104,10 +200,24 @@ def load_lots(con: duckdb.DuckDBPyConnection) -> None:
     )
 
 
-def load_diaries(con: duckdb.DuckDBPyConnection) -> None:
+_EMPTY_DIARIES_SQL = """
+    SELECT
+        CAST(NULL AS VARCHAR) AS diary_id, CAST(NULL AS VARCHAR) AS lot_id,
+        CAST(NULL AS INTEGER) AS season_id, CAST(NULL AS DATE) AS planting_date,
+        CAST(NULL AS DATE) AS straw_management_date, CAST(NULL AS DATE) AS harvest_date,
+        CAST(NULL AS VARCHAR) AS crop
+    WHERE 1 = 0
+"""
+
+
+def load_diaries(con: duckdb.DuckDBPyConnection, sources: dict[int, Path] | None = None) -> None:
+    sources = DIARIES_SOURCES if sources is None else sources
+    if not sources:
+        con.execute(f"CREATE OR REPLACE TABLE diaries AS {_EMPTY_DIARIES_SQL}")
+        return
     select_cols = _select_allowed(DIARIES_ALLOWED_COLUMNS, DIARIES_RENAME)
     unions = []
-    for season_id, path in DIARIES_SOURCES.items():
+    for season_id, path in sources.items():
         unions.append(
             f"""
             SELECT DISTINCT {select_cols}, {season_id} AS season_id
@@ -131,13 +241,35 @@ def load_diaries(con: duckdb.DuckDBPyConnection) -> None:
     )
 
 
-def load_photos(con: duckdb.DuckDBPyConnection) -> None:
-    select_cols = _select_allowed(PHOTOS_ALLOWED_COLUMNS, PHOTOS_RENAME)
+_EMPTY_PHOTOS_SQL = """
+    SELECT
+        CAST(NULL AS VARCHAR) AS photo_id, CAST(NULL AS VARCHAR) AS lot_id,
+        CAST(NULL AS INTEGER) AS season_id, CAST(NULL AS TIMESTAMP) AS capture_date,
+        CAST(NULL AS VARCHAR) AS category, CAST(NULL AS VARCHAR) AS status,
+        CAST(NULL AS DOUBLE) AS latitude, CAST(NULL AS DOUBLE) AS longitude
+    WHERE 1 = 0
+"""
+
+
+def load_photos(con: duckdb.DuckDBPyConnection, sources: dict[int, Path] | None = None) -> None:
+    sources = PHOTOS_SOURCES if sources is None else sources
+    if not sources:
+        con.execute(f"CREATE OR REPLACE TABLE photos AS {_EMPTY_PHOTOS_SQL}")
+        return
+    # season_id is a source-system internal id and isn't guaranteed to line
+    # up with our catalog season_ids (e.g. Cagayan's raw export reports "9"
+    # for every row of its Dry Crop 2026 file) - so, like lots/diaries, it's
+    # overridden here with the season_id implied by which file the row came
+    # from rather than trusted from the raw column.
+    select_cols = _select_allowed(
+        [c for c in PHOTOS_ALLOWED_COLUMNS if c != "season_id"],
+        PHOTOS_RENAME,
+    )
     unions = []
-    for season_id, path in PHOTOS_SOURCES.items():
+    for season_id, path in sources.items():
         unions.append(
             f"""
-            SELECT {select_cols}
+            SELECT {select_cols}, {season_id} AS season_id
             FROM read_csv_auto('{path.as_posix()}', ALL_VARCHAR=TRUE)
             WHERE lower("is_deleted") = 'false'
               AND "field_id" IS NOT NULL AND "field_id" != ''
@@ -150,7 +282,7 @@ def load_photos(con: duckdb.DuckDBPyConnection) -> None:
         SELECT
             photo_id,
             lot_id,
-            TRY_CAST(season_id AS INTEGER) AS season_id,
+            season_id,
             TRY_STRPTIME(capture_date, '%Y-%m-%d %H:%M:%S.%g %z') AS capture_date,
             category,
             status,
@@ -161,10 +293,23 @@ def load_photos(con: duckdb.DuckDBPyConnection) -> None:
     )
 
 
-def load_fertilizer_applications(con: duckdb.DuckDBPyConnection) -> None:
+_EMPTY_FERTILIZER_SQL = """
+    SELECT
+        CAST(NULL AS BIGINT) AS application_id, CAST(NULL AS VARCHAR) AS lot_id,
+        CAST(NULL AS INTEGER) AS season_id, CAST(NULL AS VARCHAR) AS fertilizer_type_id,
+        CAST(NULL AS DATE) AS applied_date, CAST(NULL AS DOUBLE) AS applied_amount_kg
+    WHERE 1 = 0
+"""
+
+
+def load_fertilizer_applications(con: duckdb.DuckDBPyConnection, sources: dict[int, Path] | None = None) -> None:
+    sources = FERTILIZER_SOURCES if sources is None else sources
+    if not sources:
+        con.execute(f"CREATE OR REPLACE TABLE fertilizer_applications AS {_EMPTY_FERTILIZER_SQL}")
+        return
     select_cols = _select_allowed(FERTILIZER_ALLOWED_COLUMNS, FERTILIZER_RENAME)
     unions = []
-    for season_id, path in FERTILIZER_SOURCES.items():
+    for season_id, path in sources.items():
         unions.append(
             f"""
             SELECT DISTINCT {select_cols}, {season_id} AS season_id
@@ -187,11 +332,11 @@ def load_fertilizer_applications(con: duckdb.DuckDBPyConnection) -> None:
     )
 
 
-def load_all(con: duckdb.DuckDBPyConnection) -> None:
-    load_lots(con)
-    load_diaries(con)
-    load_photos(con)
-    load_fertilizer_applications(con)
+def load_all(con: duckdb.DuckDBPyConnection, region: str = DEFAULT_REGION) -> None:
+    load_lots(con, fields_sources(region))
+    load_diaries(con, diaries_sources(region))
+    load_photos(con, photos_sources(region))
+    load_fertilizer_applications(con, fertilizer_sources(region))
 
 
 if __name__ == "__main__":

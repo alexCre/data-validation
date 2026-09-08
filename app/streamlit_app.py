@@ -14,11 +14,43 @@ import streamlit as st
 
 st.set_page_config(page_title="dMRV Data Validator", page_icon=":material/search:", layout="wide")
 
+# Simple text-password login gate, first thing on every load. The password
+# itself doubles as the region selector ("pangasinan" or "cagayan") - each
+# grants access to that region's data only (see adapters/csv_adapter.py and
+# app/components/state.py's current_region()/get_data_connection()). No
+# real auth/identity here, just a shared-secret split by region for this
+# PoC, entirely in st.session_state (cleared on browser tab close).
+REGION_PASSWORDS = {"pangasinan": "pangasinan", "cagayan": "cagayan"}
+
+if "region" not in st.session_state:
+    st.markdown("<div style='height: 12vh'></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 1.2, 1])
+    with center_col:
+        st.markdown("### dMRV Data Validator")
+        st.caption("Enter your region password to continue.")
+        with st.form("login_form"):
+            password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password")
+            submitted = st.form_submit_button("Log in", type="primary", use_container_width=True)
+        if submitted:
+            region = REGION_PASSWORDS.get(password.strip().lower())
+            if region is None:
+                st.error("Incorrect password.")
+            else:
+                st.session_state["region"] = region
+                st.rerun()
+    st.stop()
+
 # App name/wordmark, persistently visible top-left of the sidebar and main
 # content area on every page (distinct from page_title above, which only
 # affects the browser tab) - a real SVG magnifying-glass icon plus text,
 # not an emoji glyph.
 st.logo(str(REPO_ROOT / "app" / "assets" / "logo.svg"), size="large")
+
+with st.sidebar:
+    st.caption(f"Region: **{st.session_state['region'].title()}**")
+    if st.button("Log out", use_container_width=True):
+        del st.session_state["region"]
+        st.rerun()
 
 # Inter (free, Google Fonts) is set app-wide via .streamlit/config.toml's
 # theme.font/headingFont - chosen as a close, license-free match for

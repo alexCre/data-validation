@@ -8,7 +8,7 @@ if str(REPO_ROOT) not in sys.path:
 import streamlit as st
 
 from catalog.loader import season_labels
-from adapters.csv_adapter import DIARIES_SOURCES, FERTILIZER_SOURCES, FIELDS_SOURCES, PHOTOS_SOURCES
+from adapters import csv_adapter
 from adapters.pii_policy import (
     DIARIES_ALLOWED_COLUMNS,
     FERTILIZER_ALLOWED_COLUMNS,
@@ -17,6 +17,7 @@ from adapters.pii_policy import (
 )
 from app.components.charts import geometry_coverage_chart
 from app.components.state import (
+    current_region,
     field_season_readiness_df,
     get_data_connection,
     results_df,
@@ -24,9 +25,26 @@ from app.components.state import (
 )
 
 st.title("Data & Setup")
-st.caption("Loaded sources for this PoC, plus running validation. No LLM is used on this page.")
+st.caption(
+    f"Loaded sources for **{current_region().title()}**, plus running validation. "
+    "No LLM is used on this page."
+)
 
-SEASON_LABELS = season_labels()
+REGION = current_region()
+FIELDS_SOURCES = csv_adapter.fields_sources(REGION)
+DIARIES_SOURCES = csv_adapter.diaries_sources(REGION)
+PHOTOS_SOURCES = csv_adapter.photos_sources(REGION)
+FERTILIZER_SOURCES = csv_adapter.fertilizer_sources(REGION)
+
+ALL_SEASON_LABELS = season_labels()
+# Each region is scoped to its own catalog seasons (see
+# adapters.csv_adapter.region_season_ids and catalog/season_bounds.yaml) -
+# Cagayan only ever offers Dry/Wet Crop 2026, Pangasinan only Dry/Wet Crop
+# 2025, regardless of which other seasons are documented in the catalog.
+REGION_SEASON_IDS = {str(season_id) for season_id in csv_adapter.region_season_ids(REGION)}
+SEASON_LABELS = {
+    season_id: label for season_id, label in ALL_SEASON_LABELS.items() if season_id in REGION_SEASON_IDS
+}
 LABEL_TO_SEASON_ID = {label: season_id for season_id, label in SEASON_LABELS.items()}
 # Only seasons with a real lots CSV (see adapters/csv_adapter.py) can
 # actually be validated - the rest are season_bounds.yaml entries kept for

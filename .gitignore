@@ -10,7 +10,8 @@ __pycache__/
 generated_drafts/*
 !generated_drafts/.gitkeep
 
-# Unused by the app (adapters/csv_adapter.py reads data/csv/*.csv only) and
-# contains unredacted PII (real names) that data/csv/*.csv has been scrubbed
-# of - never publish this.
+# Unused by the app (adapters/csv_adapter.py reads data/<region>/csv/*.csv
+# only) and contains unredacted PII (real names) that data/<region>/csv/*.csv
+# has been scrubbed of - never publish this.
 data/sql/
+data/*/sql/

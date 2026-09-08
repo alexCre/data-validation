@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import date, datetime
+from pathlib import Path
 
 import duckdb
 import pandas as pd
@@ -25,17 +26,34 @@ from validation.dsl.validate import RuleValidationError, validate_rule
 from validation.engine import run_batch
 from validation.models import RuleStatus
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def current_region() -> str:
+    """The logged-in region ("pangasinan" or "cagayan"), set by the login
+    gate in app/streamlit_app.py before any page runs."""
+    return st.session_state.get("region", csv_adapter.DEFAULT_REGION)
+
 
 @st.cache_resource
-def get_data_connection() -> duckdb.DuckDBPyConnection:
+def _data_connection_for(region: str) -> duckdb.DuckDBPyConnection:
     con = csv_adapter.get_connection()
-    csv_adapter.load_all(con)
+    csv_adapter.load_all(con, region=region)
     return con
 
 
+def get_data_connection() -> duckdb.DuckDBPyConnection:
+    return _data_connection_for(current_region())
+
+
 @st.cache_resource
+def _store_connection_for(region: str) -> duckdb.DuckDBPyConnection:
+    db_path = REPO_ROOT / f"dmrv_validation_{region}.duckdb"
+    return duckdb_store.get_connection(db_path)
+
+
 def get_store_connection() -> duckdb.DuckDBPyConnection:
-    return duckdb_store.get_connection()
+    return _store_connection_for(current_region())
 
 
 def get_rules(validate: bool = True):
