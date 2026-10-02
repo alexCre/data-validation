@@ -121,8 +121,7 @@ readiness_filtered["season"] = readiness_filtered["season_id"].map(lambda s: SEA
 
 section(f"Field-seasons matching filters: {len(readiness_filtered):,}")
 if not readiness_filtered.empty:
-    with card("fr_bar"):
-        st.altair_chart(readiness_status_bar(readiness_filtered), use_container_width=True)
+    st.altair_chart(readiness_status_bar(readiness_filtered), use_container_width=True)
 st.dataframe(
     readiness_filtered[
         [

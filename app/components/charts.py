@@ -219,8 +219,8 @@ def geometry_coverage_chart(coverage_df: pd.DataFrame) -> alt.Chart:
         alt.Chart(long_df)
         .mark_bar(height=20, cornerRadiusEnd=4)
         .encode(
-            y=alt.Y("season_id:N", title="Season"),
-            x=alt.X("count:Q", title="Field-seasons", axis=alt.Axis(format=",d")),
+            y=alt.Y("season_id:N", title=None, axis=alt.Axis(labelFontSize=12, ticks=False, domain=False)),
+            x=alt.X("count:Q", title=None, axis=alt.Axis(format=",d", labelFontSize=11)),
             order=alt.Order("rank:Q"),
             color=alt.Color(
                 "status_label:N",

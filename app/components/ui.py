@@ -81,12 +81,17 @@ h2, h3 { margin-top: .4rem; }
    card() in ui.py gives a keyed container so we can target it safely. */
 [class*="st-key-card"] {
   background: var(--card); border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important; box-shadow: var(--shadow); padding: .4rem .6rem;
+  border-radius: var(--radius) !important; box-shadow: var(--shadow); padding: 1.15rem 1.5rem;
 }
 
 /* metrics nested inside a card go flat (no double borders) */
 [class*="st-key-card"] [data-testid="stMetric"] { border: 0; box-shadow: none; padding: .2rem 0; background: transparent; }
-[class*="st-key-card"] [data-testid="stExpander"] { background: #f8fafc; }
+/* no frame-in-frame: expanders inside a card become a plain divider row */
+[class*="st-key-card"] [data-testid="stExpander"] {
+  background: transparent; border: 0 !important; border-top: 1px solid var(--border) !important;
+  border-radius: 0; margin-top: .3rem;
+}
+[class*="st-key-card"] [data-testid="stExpander"] details { border: 0 !important; background: transparent; box-shadow: none; }
 
 /* ---- Native metrics -> card look ---- */
 [data-testid="stMetric"] {
@@ -166,9 +171,12 @@ h2, h3 { margin-top: .4rem; }
 @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 .kpi {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 1rem 1.15rem; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  padding: 1.1rem 1.4rem; box-shadow: var(--shadow);
 }
-.kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent, var(--brand)); }
+.kpi .k-label::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent, var(--brand)); margin-right: .55rem; vertical-align: 1px;
+}
 .kpi .k-label { color: var(--muted); font-size: .78rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
 .kpi .k-value { color: var(--ink); font-size: 1.9rem; font-weight: 700; line-height: 1.2; margin-top: .2rem; }
 .kpi .k-sub { margin-top: .15rem; font-size: .82rem; font-weight: 600; color: var(--accent, var(--muted)); }
