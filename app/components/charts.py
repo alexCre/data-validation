@@ -58,39 +58,68 @@ def rule_sort_key(rule_id: str) -> tuple[int, str]:
     return (1, rule_id)
 
 
+READINESS_LABELS = {"READY": "Ready", "NEEDS_REVIEW": "Needs review", "FAILED": "Failed"}
+# Text on a status fill: white on green/red, dark on amber (contrast).
+READINESS_TEXT = {"READY": "#ffffff", "NEEDS_REVIEW": "#3b2a00", "FAILED": "#ffffff"}
+TRACK = "#eef2f7"
+
+
 def readiness_status_bar(readiness_df: pd.DataFrame) -> alt.Chart:
     """Part-to-whole: a single 100%-stacked horizontal bar of
-    READY/NEEDS_REVIEW/FAILED - a status/state breakdown, so it wears the
-    fixed status palette, not a categorical one."""
+    READY/NEEDS_REVIEW/FAILED (status palette, not categorical). Segments
+    are laid out explicitly (start/end share) so each can carry a direct
+    label - share and count - centered inside it, with a 2px surface gap
+    between fills. Segments too narrow for a label stay unlabeled; the
+    legend and tooltip still identify them."""
     counts = (
         readiness_df["readiness"].value_counts().reindex(READINESS_ORDER, fill_value=0).rename_axis("readiness").reset_index(name="count")
     )
     total = int(counts["count"].sum())
     counts["share"] = counts["count"] / total if total else 0.0
-    counts["rank"] = counts["readiness"].map({v: i for i, v in enumerate(READINESS_ORDER)})
-    counts["row"] = "Field-seasons"
-
-    chart = (
-        alt.Chart(counts)
-        .mark_bar(height=24, cornerRadiusEnd=4)
-        .encode(
-            x=alt.X("count:Q", stack="normalize", axis=None),
-            y=alt.Y("row:N", axis=None, title=None),
-            order=alt.Order("rank:Q"),
-            color=alt.Color(
-                "readiness:N",
-                scale=alt.Scale(domain=READINESS_ORDER, range=[READINESS_COLORS[k] for k in READINESS_ORDER]),
-                legend=alt.Legend(title=None, orient="bottom"),
-            ),
-            tooltip=[
-                alt.Tooltip("readiness:N", title="Status"),
-                alt.Tooltip("count:Q", title="Field-seasons", format=",d"),
-                alt.Tooltip("share:Q", title="Share", format=".0%"),
-            ],
-        )
-        .properties(height=48)
+    counts["end"] = counts["share"].cumsum()
+    counts["start"] = counts["end"] - counts["share"]
+    counts["mid"] = (counts["start"] + counts["end"]) / 2
+    counts["status"] = counts["readiness"].map(READINESS_LABELS)
+    counts["label"] = counts.apply(
+        lambda r: f"{r['status']}  {r['share']:.0%}" if r["share"] >= 0.14 else (f"{r['share']:.0%}" if r["share"] >= 0.05 else ""),
+        axis=1,
     )
-    return _configure(chart)
+    counts["text_color"] = counts["readiness"].map(READINESS_TEXT)
+    counts["row"] = "Field-seasons"
+    status_order = [READINESS_LABELS[k] for k in READINESS_ORDER]
+    color = alt.Color(
+        "status:N",
+        scale=alt.Scale(domain=status_order, range=[READINESS_COLORS[k] for k in READINESS_ORDER]),
+        legend=alt.Legend(title=None, orient="bottom", symbolType="square", labelFontSize=12, padding=4),
+    )
+    x_scale = alt.Scale(domain=[0, 1], nice=False)
+    tooltip = [
+        alt.Tooltip("status:N", title="Status"),
+        alt.Tooltip("count:Q", title="Field-seasons", format=",d"),
+        alt.Tooltip("share:Q", title="Share", format=".1%"),
+    ]
+    bars = (
+        alt.Chart(counts)
+        .mark_bar(size=34, cornerRadius=6, stroke="#ffffff", strokeWidth=2)
+        .encode(
+            x=alt.X("start:Q", axis=None, scale=x_scale),
+            x2="end:Q",
+            y=alt.Y("row:N", axis=None, title=None),
+            color=color,
+            tooltip=tooltip,
+        )
+    )
+    labels = (
+        alt.Chart(counts[counts["label"] != ""])
+        .mark_text(fontSize=13, fontWeight=600)
+        .encode(
+            x=alt.X("mid:Q", axis=None, scale=x_scale),
+            y=alt.Y("row:N", axis=None, title=None),
+            text="label:N",
+            color=alt.Color("text_color:N", scale=None),
+        )
+    )
+    return _configure((bars + labels).properties(height=64))
 
 
 def horizontal_magnitude_bar(
@@ -102,30 +131,70 @@ def horizontal_magnitude_bar(
     value_format: str,
     title: str | None = None,
     category_label: str = "Rule",
+    domain_max: float | None = None,
+    show_track: bool = False,
+    height: int | None = None,
+    name_col: str | None = None,
+    name_title: str = "Name",
+    sort_by_value: bool = False,
 ) -> alt.Chart:
-    """A single-hue horizontal bar comparing magnitude across nominal
-    categories (rule ids) - sequential-style single hue, not one color per
-    bar, since the bars aren't distinct identities to tell apart. Value
-    labelled at the bar tip (every bar, not just extremes - there are only
-    ever up to ~12 rules, and exact reading matters for a validation
-    dashboard)."""
+    """Single-hue horizontal bars comparing magnitude across nominal
+    categories (rule ids). Every bar is labelled at its tip, so the value
+    axis is dropped entirely (direct labels beat a ruler here) and the chart
+    reads as bars + numbers, nothing else. `domain_max` pins the scale (1.0
+    for percentages, plus label headroom); `show_track` draws a faint
+    full-width track behind each bar so a 100% bar still reads as 'full'.
+    A fixed `height` keeps side-by-side cards the same size no matter how
+    many categories each has. `name_col` (e.g. rule name) is tooltip-only."""
     df = df.copy()
-    order = sorted(df[category_col].tolist(), key=rule_sort_key)
+    if sort_by_value:
+        order = df.sort_values(value_col, ascending=False)[category_col].tolist()
+    else:
+        order = sorted(df[category_col].tolist(), key=rule_sort_key)
+    if height is None:
+        height = max(len(df), 1) * 28
+    max_value = float(df[value_col].max()) if len(df) else 1.0
+    track_end = domain_max if domain_max is not None else max_value
+    df["_track"] = track_end
+    scale = alt.Scale(domain=[0, track_end * (1.18 if (show_track or domain_max) else 1.12)], nice=False)
 
-    base = alt.Chart(df).encode(
-        y=alt.Y(f"{category_col}:N", sort=order, title=None, axis=alt.Axis(labelLimit=0)),
-        x=alt.X(f"{value_col}:Q", axis=alt.Axis(format=value_format), title=title),
+    y = alt.Y(
+        f"{category_col}:N",
+        sort=order,
+        title=None,
+        axis=alt.Axis(labelLimit=170, labelFontSize=12, labelPadding=10, ticks=False, domain=False),
+        scale=alt.Scale(paddingInner=0.35, paddingOuter=0.1),
     )
-    bars = base.mark_bar(height=16, cornerRadiusEnd=4, color=hue).encode(
-        tooltip=[
-            alt.Tooltip(f"{category_col}:N", title=category_label),
-            alt.Tooltip(f"{value_col}:Q", title=title or value_col, format=value_format),
-        ]
+    tooltip = [alt.Tooltip(f"{category_col}:N", title=category_label)]
+    if name_col and name_col in df.columns:
+        tooltip.append(alt.Tooltip(f"{name_col}:N", title=name_title))
+    tooltip.append(alt.Tooltip(f"{value_col}:Q", title=title or value_col, format=value_format))
+
+    layers = []
+    if show_track:
+        layers.append(
+            alt.Chart(df).mark_bar(color=TRACK, cornerRadiusEnd=5, size=16).encode(
+                y=y, x=alt.X("_track:Q", axis=None, scale=scale)
+            )
+        )
+    layers.append(
+        alt.Chart(df)
+        .mark_bar(color=hue, cornerRadiusEnd=5, size=16)
+        .encode(y=y, x=alt.X(f"{value_col}:Q", axis=None, scale=scale), tooltip=tooltip)
     )
-    labels = base.mark_text(align="left", dx=4, color=_theme_ink()["ink"]).encode(
-        text=alt.Text(f"{value_col}:Q", format=value_format)
+    layers.append(
+        alt.Chart(df)
+        .mark_text(align="left", dx=7, fontSize=12, fontWeight=600, color=_theme_ink()["ink"])
+        .encode(y=y, x=alt.X(f"{value_col}:Q", axis=None, scale=scale), text=alt.Text(f"{value_col}:Q", format=value_format))
     )
-    return _configure((bars + labels).properties(height=alt.Step(22)))
+    # Right padding keeps the longest bar's value label inside the canvas.
+    return _configure(
+        alt.layer(*layers).properties(
+            height=height,
+            padding={"left": 2, "right": 36, "top": 4, "bottom": 4},
+            autosize=alt.AutoSizeParams(type="fit", contains="padding"),
+        )
+    )
 
 
 def geometry_coverage_chart(coverage_df: pd.DataFrame) -> alt.Chart:

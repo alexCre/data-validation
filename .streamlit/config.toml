@@ -4,33 +4,45 @@
 # already branches on theme.base to match chart ink/grid to whichever is
 # active).
 #
-# Font: Inter, loaded from Google Fonts (free, open-source) - a close
-# match for Proxima Nova's look without needing a licensed font file.
-# Swap the URL below for a self-hosted [[theme.fontFaces]] entry if a
-# licensed Proxima Nova file becomes available.
+# Font: Inter (SIL OFL), self-hosted from app/static/ so the app renders
+# identically with no internet (venue wifi, air-gapped demo). A variable
+# font: one file covers every weight. Swap the [[theme.fontFaces]] entry
+# for a licensed file (e.g. Proxima Nova) if one becomes available.
+[server]
+enableStaticServing = true
+
 [theme]
 base = "light"
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, -apple-system, Helvetica Neue, Arial, sans-serif"
-headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, -apple-system, Helvetica Neue, Arial, sans-serif"
-baseFontSize = 14
+font = "Inter, -apple-system, Helvetica Neue, Arial, sans-serif"
+headingFont = "Inter, -apple-system, Helvetica Neue, Arial, sans-serif"
+baseFontSize = 15
 baseFontWeight = 400
-headingFontSizes = ["1.6rem", "1.25rem", "1.05rem", "0.95rem", "0.875rem", "0.8rem"]
+headingFontSizes = ["1.85rem", "1.3rem", "1.1rem", "0.95rem", "0.875rem", "0.8rem"]
 headingFontWeights = [700, 600, 600, 600, 600, 600]
-metricValueFontSize = "1.5rem"
+metricValueFontSize = "1.7rem"
 metricValueFontWeight = 700
-baseRadius = "0.5rem"
-buttonRadius = "0.375rem"
+baseRadius = "0.75rem"
+buttonRadius = "0.625rem"
 showWidgetBorder = true
+
 codeFontSize = "0.8rem"
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/inter-latin-wght-normal.woff2"
+weight = "100 900"
+style = "normal"
 
 [theme.light]
 primaryColor = "#2a78d6"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f5f4f0"
-textColor = "#0b0b0b"
-borderColor = "#e1e0d9"
-dataframeBorderColor = "#e1e0d9"
-dataframeHeaderBackgroundColor = "#f5f4f0"
+backgroundColor = "#f5f7fa"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
+borderColor = "#e4e8ee"
+dataframeBorderColor = "#e4e8ee"
+dataframeHeaderBackgroundColor = "#f1f5f9"
+codeTextColor = "#334155"
+codeBackgroundColor = "#eef2f7"
 
 [theme.dark]
 primaryColor = "#3987e5"

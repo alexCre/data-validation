@@ -26,16 +26,21 @@ from app.components.state import (
     promote_custom_rule,
 )
 from persistence import duckdb_store
+from app.components.ui import card, chip, page_header, section
 from validation.dsl.validate import RuleValidationError
 from validation.engine import build_field_season_contexts, evaluate_rule_for_context, AVAILABLE_TABLES
 from validation.models import Rule, RuleStatus
 
-st.title("Rules")
+page_header(
+    "Rules",
+    "The base C1-C9 rule pack, custom rules, and the agentic Rule Builder. Agents propose; only you activate.",
+    eyebrow="Configure",
+)
 
 DEVELOPER_MODE = os.environ.get("DEVELOPER_MODE", "false").lower() == "true"
 
 rules = get_rules(validate=False)
-st.subheader("Base rule pack")
+section("Base rule pack")
 st.dataframe(
     [
         {
@@ -77,7 +82,7 @@ if rules:
                 st.success(f"Deleted {static_rule_to_delete}.")
                 st.rerun()
 
-st.subheader("Custom rules (agent-authored)")
+section("Custom rules", "Agent-authored; must be previewed, tested and approved before activation.")
 custom_rules = get_custom_rules()
 if not custom_rules:
     st.caption("None yet - build one below.")
@@ -123,8 +128,7 @@ else:
                 st.success(f"Deleted {selected_custom_rule}.")
                 st.rerun()
 
-st.divider()
-st.header("Agentic Validation Rule Builder")
+section("Agentic Validation Rule Builder", "Describe a requirement in plain English; the agent compiles it to a typed rule.")
 
 if not is_configured():
     st.info(
@@ -166,7 +170,7 @@ if st.button("Ask Agent") and requirement_text.strip():
 
 result = st.session_state.get("compilation_result")
 if result is not None:
-    st.subheader("Agent response")
+    section("Agent response")
     st.write(f"**Status:** {result.status.value}")
 
     if result.status == CompilationStatus.COMPILED:

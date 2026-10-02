@@ -16,6 +16,7 @@ from adapters.pii_policy import (
     PHOTOS_ALLOWED_COLUMNS,
 )
 from app.components.charts import geometry_coverage_chart
+from app.components.ui import card, chip, kpi_row, page_header, section
 from app.components.state import (
     current_region,
     field_season_readiness_df,
@@ -24,10 +25,11 @@ from app.components.state import (
     run_validation,
 )
 
-st.title("Data & Setup")
-st.caption(
-    f"Loaded sources for **{current_region().title()}**, plus running validation. "
-    "No LLM is used on this page."
+page_header(
+    "Data & Setup",
+    "Choose the seasons to validate and run the deterministic C1-C9 rules. No LLM is used on this page.",
+    eyebrow="Step 1 · Validate",
+    chips=[chip(current_region().title(), "brand", dot=True), chip("PII-stripped", "good", dot=True)],
 )
 
 REGION = current_region()
@@ -52,8 +54,8 @@ LABEL_TO_SEASON_ID = {label: season_id for season_id, label in SEASON_LABELS.ite
 ACTIVE_SEASON_IDS = {str(season_id) for season_id in FIELDS_SOURCES}
 con = get_data_connection()
 
-with st.container(border=True):
-    st.markdown("**Run validation** &nbsp;·&nbsp; is this monitoring dataset ready for verification?")
+with card("run"):
+    section("Run validation", "Is this monitoring dataset ready for verification?")
 
     row_cols = st.columns([1] * len(SEASON_LABELS) + [1.3, 1.6])
     season_cols, run_col, status_col = row_cols[:-2], row_cols[-2], row_cols[-1]
@@ -96,8 +98,7 @@ with st.container(border=True):
         st.session_state["validation_run_id"] = run_id
         st.success(f"Validation run complete: {run_id} ({len(detail_df):,} results, {len(readiness_df):,} field-seasons)")
 
-st.divider()
-st.subheader("Loaded sources")
+section("Loaded sources", "Rows kept after dropping deleted records; columns follow a PII allowlist.")
 sources = [
     ("lots", FIELDS_SOURCES, FIELDS_ALLOWED_COLUMNS),
     ("diaries", DIARIES_SOURCES, DIARIES_ALLOWED_COLUMNS),
@@ -107,18 +108,22 @@ sources = [
 source_cols = st.columns(4)
 for col, (table, source_map, allowed_columns) in zip(source_cols, sources):
     with col:
-        with st.container(border=True):
+        with card(f"src_{table}"):
             st.markdown(f"**`{table}`**")
             for season_id, path in source_map.items():
                 label = SEASON_LABELS.get(str(season_id), str(season_id))
-                st.caption(f"{label}: `{path.name}`")
+                st.markdown(
+                    f'<div class="src"><span class="src-l">{label}</span>'
+                    f'<span class="src-f" title="{path.name}">{path.name}</span></div>',
+                    unsafe_allow_html=True,
+                )
             row_count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             st.metric("Rows (is_deleted=false)", f"{row_count:,}")
-            with st.expander("PII-stripped column allowlist"):
+            with st.expander("Allowed columns"):
                 st.caption(", ".join(allowed_columns))
 
-st.subheader("Data not present in this dataset")
-st.warning(
+section("Data not present in this dataset")
+st.info(
     "`farmers`, `contracts`, `riceid`, and `lipa` sources are not part of this export, "
     "and no active rule (C1-C9) depends on them - they're documented in the catalog "
     "schema only so a future rule referencing them is recognized as legitimate rather "
@@ -128,8 +133,8 @@ st.warning(
 
 cov_col, health_col = st.columns([1, 1])
 
-with cov_col:
-    st.subheader("Field-season coverage")
+with cov_col, card("coverage"):
+    section("Field-season coverage")
     coverage = con.execute(
         """
         SELECT season_id, COUNT(*) AS field_seasons,
@@ -140,8 +145,8 @@ with cov_col:
     coverage["season_id"] = coverage["season_id"].astype(int).astype(str).map(lambda s: SEASON_LABELS.get(s, s))
     st.altair_chart(geometry_coverage_chart(coverage), use_container_width=True)
 
-with health_col:
-    st.subheader("Basic source-data health")
+with health_col, card("health"):
+    section("Source-data health")
     health = con.execute(
         """
         SELECT

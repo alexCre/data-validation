@@ -12,6 +12,8 @@ if str(REPO_ROOT) not in sys.path:
 
 import streamlit as st
 
+from app.components.ui import card, chip, hide_sidebar, inject_global_css
+
 st.set_page_config(page_title="dMRV Data Validator", page_icon=":material/search:", layout="wide")
 
 # Simple text-password login gate, first thing on every load. The password
@@ -23,21 +25,37 @@ st.set_page_config(page_title="dMRV Data Validator", page_icon=":material/search
 REGION_PASSWORDS = {"pangasinan": "pangasinan", "cagayan": "cagayan"}
 
 if "region" not in st.session_state:
-    st.markdown("<div style='height: 12vh'></div>", unsafe_allow_html=True)
-    _, center_col, _ = st.columns([1, 1.2, 1])
+    inject_global_css()
+    hide_sidebar()
+    st.markdown("<div style='height: 9vh'></div>", unsafe_allow_html=True)
+    _, center_col, _ = st.columns([1, 1.15, 1])
     with center_col:
-        st.markdown("### dMRV Data Validator")
-        st.caption("Enter your region password to continue.")
-        with st.form("login_form"):
-            password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password")
-            submitted = st.form_submit_button("Log in", type="primary", use_container_width=True)
-        if submitted:
-            region = REGION_PASSWORDS.get(password.strip().lower())
-            if region is None:
-                st.error("Incorrect password.")
-            else:
-                st.session_state["region"] = region
-                st.rerun()
+        st.markdown(
+            """
+            <div class="login-wrap">
+              <div class="login-logo">&#10003;</div>
+              <div class="login-title">dMRV Data Validator</div>
+              <div class="login-sub">Agentic, auditable validation of monitoring data.<br/>Enter your region password to continue.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with card("login"):
+            with st.form("login_form", border=False):
+                password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Region password")
+                submitted = st.form_submit_button("Log in", type="primary", use_container_width=True)
+            if submitted:
+                region = REGION_PASSWORDS.get(password.strip().lower())
+                if region is None:
+                    st.error("Incorrect password.")
+                else:
+                    st.session_state["region"] = region
+                    st.rerun()
+        st.markdown(
+            "<div style='text-align:center;color:#94a3b8;font-size:.82rem;margin-top:.4rem'>"
+            "Deterministic C1-C9 rules · no LLM decides a validation outcome</div>",
+            unsafe_allow_html=True,
+        )
     st.stop()
 
 # App name/wordmark, persistently visible top-left of the sidebar and main
@@ -47,7 +65,13 @@ if "region" not in st.session_state:
 st.logo(str(REPO_ROOT / "app" / "assets" / "logo.svg"), size="large")
 
 with st.sidebar:
-    st.caption(f"Region: **{st.session_state['region'].title()}**")
+    st.markdown(
+        "<div style='margin:.2rem 0 .4rem 0'><span style='font-size:.7rem;font-weight:700;letter-spacing:.08em;"
+        "text-transform:uppercase;color:#64748b'>Region</span><br/>"
+        + chip(st.session_state["region"].title(), "brand", dot=True)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
     if st.button("Log out", use_container_width=True):
         del st.session_state["region"]
         st.rerun()
@@ -62,39 +86,16 @@ with st.sidebar:
 # inherit theme.font too. Also tightens vertical density - smaller gaps
 # between stacked elements and less dead space above the page title - so
 # more of the Dashboard/Field Review fits without scrolling.
-st.markdown(
-    """
-    <style>
-    [data-testid="stIconMaterial"],
-    [data-testid$="Icon"],
-    [data-testid*="Icon"],
-    .material-symbols-rounded,
-    .material-icons {
-        font-family: 'Material Symbols Rounded' !important;
-    }
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    [data-testid="stVerticalBlock"] {
-        gap: 0.6rem;
-    }
-    hr {
-        margin: 0.5rem 0;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+inject_global_css()
 
 pages = {
-    "": [
-        st.Page("pages/dashboard.py", title="Dashboard"),
-        st.Page("pages/field_review.py", title="Field Review"),
+    "Validate": [
+        st.Page("pages/data.py", title="Data & Setup", icon=":material/database:", default=True),
+        st.Page("pages/dashboard.py", title="Dashboard", icon=":material/monitoring:"),
+        st.Page("pages/field_review.py", title="Field Review", icon=":material/fact_check:"),
     ],
-    "Setup": [
-        st.Page("pages/data.py", title="Data & Setup", default=True),
-        st.Page("pages/rules.py", title="Rules"),
+    "Configure": [
+        st.Page("pages/rules.py", title="Rules", icon=":material/rule:"),
     ],
 }
 

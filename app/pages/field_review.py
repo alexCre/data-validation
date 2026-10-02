@@ -12,6 +12,7 @@ import streamlit as st
 from catalog.loader import season_labels
 from app.components.charts import readiness_status_bar
 from app.components.copilot_ui import render_copilot_launcher
+from app.components.ui import card, chip, empty_state, page_header, readiness_chip, section
 from app.components.exports import detailed_export_df, field_summary_export_df
 from app.components.state import (
     current_region,
@@ -24,9 +25,12 @@ from app.components.state import (
 )
 from validation.engine import load_season_bounds
 
-st.title("Field Review")
+page_header(
+    "Field Review",
+    "Filter field-seasons, inspect why a rule passed or failed, and export results. Deterministic - no LLM is used here.",
+    eyebrow="Step 3 · Review",
+)
 render_copilot_launcher()
-st.caption("Deterministic, local CSV generation - no LLM is used on this page.")
 
 SEASON_LABELS = season_labels()
 LABEL_TO_SEASON_ID = {label: season_id for season_id, label in SEASON_LABELS.items()}
@@ -34,7 +38,10 @@ LABEL_TO_SEASON_ID = {label: season_id for season_id, label in SEASON_LABELS.ite
 # Session-scoped, not the persisted store's latest run - see Dashboard for why.
 run_id = st.session_state.get("validation_run_id")
 if run_id is None:
-    st.info("No validation run yet. Go to **Data & Setup** to select seasons and click Run Data Validation.")
+    empty_state(
+        "No validation run yet",
+        "Go to <b>Data &amp; Setup</b>, select a season and click <b>Run Data Validation</b>.",
+    )
     st.stop()
 
 detail_df = results_df(run_id)
@@ -43,7 +50,9 @@ readiness_df = field_season_readiness_df(run_id).merge(
 )
 rules = {r.rule_id: r for r in get_rules(validate=False)}
 
-st.subheader("Filters")
+section("Filters")
+_filters = card("filters")
+_filters.__enter__()
 c1, c2, c3 = st.columns(3)
 with c1:
     # Fixed key so the Copilot page can pre-set this filter (st.session_state
@@ -78,6 +87,8 @@ with e2:
         "Min NEEDS_REVIEW rules", min_value=0, max_value=max(max_review_count, 0), value=0, step=1
     )
 
+_filters.__exit__(None, None, None)
+
 filtered = detail_df.copy()
 if rule_filter:
     filtered = filtered[filtered["rule_id"].isin(rule_filter)]
@@ -108,9 +119,10 @@ readiness_keys = readiness_df["lot_id"] + "\x1f" + readiness_df["season_id"]
 readiness_filtered = readiness_df[readiness_keys.isin(filtered_keys) & readiness_keys.isin(lot_level_keys)].copy()
 readiness_filtered["season"] = readiness_filtered["season_id"].map(lambda s: SEASON_LABELS.get(s, s))
 
-st.subheader(f"Field-seasons matching filters: {len(readiness_filtered):,}")
+section(f"Field-seasons matching filters: {len(readiness_filtered):,}")
 if not readiness_filtered.empty:
-    st.altair_chart(readiness_status_bar(readiness_filtered), use_container_width=True)
+    with card("fr_bar"):
+        st.altair_chart(readiness_status_bar(readiness_filtered), use_container_width=True)
 st.dataframe(
     readiness_filtered[
         [
@@ -129,9 +141,23 @@ st.dataframe(
     ].rename(columns={"lot_id": "field_id", "field_name": "field_name (lot name)", "ia": "IA", "ris": "RIS", "tsag": "TSAG"}),
     use_container_width=True,
     hide_index=True,
+    # Compact, content-sized columns so the table fits without sideways scrolling as far as possible.
+    column_config={
+        "field_id": st.column_config.TextColumn("Field ID", width=78),
+        "field_name (lot name)": st.column_config.TextColumn("Field name", width=110),
+        "TSAG": st.column_config.TextColumn("TSAG", width=52),
+        "IA": st.column_config.TextColumn("IA", width=140),
+        "RIS": st.column_config.TextColumn("RIS", width=175),
+        "season": st.column_config.TextColumn("Season", width=105),
+        "readiness": st.column_config.TextColumn("Readiness", width=118),
+        "fail_count": st.column_config.NumberColumn("Fails", width=52),
+        "review_count": st.column_config.NumberColumn("Reviews", width=66),
+        "fail_rule_ids": st.column_config.TextColumn("Failed rules", width=95),
+        "review_rule_ids": st.column_config.TextColumn("Review rules", width=110),
+    },
 )
 
-st.subheader("Select a field-season for detail")
+section("Field-season detail", "Pick one to see each rule's reason, observations and source records.")
 options = list(zip(readiness_filtered["lot_id"], readiness_filtered["season_id"]))
 name_lookup = dict(zip(zip(readiness_filtered["lot_id"], readiness_filtered["season_id"]), readiness_filtered["field_name"]))
 if options:
@@ -144,10 +170,11 @@ if options:
         lot_id, season_id = selected
         detail_rows = detail_df[(detail_df["lot_id"] == lot_id) & (detail_df["season_id"] == season_id)]
         readiness_row = readiness_df[(readiness_df["lot_id"] == lot_id) & (readiness_df["season_id"] == season_id)]
-        st.write(f"**Overall readiness:** {readiness_row['readiness'].iloc[0]}")
+        st.markdown("Overall readiness &nbsp;" + readiness_chip(readiness_row["readiness"].iloc[0]), unsafe_allow_html=True)
         for _, row in detail_rows.sort_values("rule_id").iterrows():
             rule = rules.get(row["rule_id"])
-            with st.expander(f"{row['rule_id']} - {rule.name if rule else ''} - {row['result']}"):
+            _icon = {"PASS": "✅", "FAIL": "❌", "REVIEW": "🔍"}.get(row["result"], "➖")
+            with st.expander(f"{_icon}  {row['rule_id']} · {rule.name if rule else ''} · {row['result']}"):
                 st.write("**Reason:**", row["reason"])
                 st.write("**Observations:**", json.loads(row["observations"]))
                 missing_inputs = json.loads(row["missing_inputs"]) if row["missing_inputs"] else []
@@ -175,9 +202,7 @@ if options:
                                 f"Season window: {bounds['start_date'].isoformat()} to {bounds['end_date'].isoformat()}"
                             )
 
-st.divider()
-st.subheader("CSV export")
-st.caption("Exports respect the active filters above. Choose Full Run to ignore filters.")
+section("CSV export", "Exports respect the active filters above. Choose Full Run to ignore filters.")
 
 export_scope = st.radio("Scope", ["Filtered results", "Full current validation run"], horizontal=True)
 export_df = detail_df if export_scope == "Full current validation run" else filtered
