@@ -79,8 +79,8 @@ with card("readiness"):
     st.altair_chart(readiness_status_bar(readiness_df), use_container_width=True)
 
 rules = {r.rule_id: r.name for r in get_rules(validate=False)}
-CHART_HEIGHT = max(len(rules), 1) * 28  # same plot height in all three cards so they line up
-chart_col1, chart_col2, chart_col3 = st.columns(3)
+CHART_HEIGHT = max(len(rules), 1) * 28  # same plot height in both cards so they line up
+chart_col1, chart_col2 = st.columns(2)
 
 with chart_col1, card("passrate"):
     section("Pass rate per rule", "Share of applicable field-seasons that passed.")
@@ -107,7 +107,34 @@ with chart_col1, card("passrate"):
         use_container_width=True,
     )
 
-with chart_col2, card("missing"):
+with chart_col2, card("issues"):
+    section("Top validation issues", "Field-seasons failing each rule.")
+    issue_counts = (
+        detail_df[detail_df["result"] == "FAIL"]
+        .groupby("rule_id")
+        .size()
+        .reset_index(name="fail_count")
+    )
+    issue_counts["rule_name"] = issue_counts["rule_id"].map(rules)
+    if issue_counts.empty:
+        st.caption("No FAIL results in this run.")
+    else:
+        issue_counts = issue_counts.sort_values("rule_id", key=lambda s: s.map(rule_sort_key))
+        st.altair_chart(
+            horizontal_magnitude_bar(
+                issue_counts,
+                "rule_id",
+                "fail_count",
+                hue=STATUS_CRITICAL,
+                value_format=",d",
+                title="Fail count",
+                name_col="rule_name",
+                height=CHART_HEIGHT,
+            ),
+            use_container_width=True,
+        )
+
+with card("missing"):
     section(
         "Missing data behind review",
         "Field-seasons missing each input.",
@@ -141,34 +168,6 @@ with chart_col2, card("missing"):
                 name_col="source_column",
                 name_title="Source column",
                 sort_by_value=True,
-                height=CHART_HEIGHT,
-            ),
-            use_container_width=True,
-        )
-
-with chart_col3, card("issues"):
-    section("Top validation issues", "Field-seasons failing each rule.")
-    issue_counts = (
-        detail_df[detail_df["result"] == "FAIL"]
-        .groupby("rule_id")
-        .size()
-        .reset_index(name="fail_count")
-    )
-    issue_counts["rule_name"] = issue_counts["rule_id"].map(rules)
-    if issue_counts.empty:
-        st.caption("No FAIL results in this run.")
-    else:
-        issue_counts = issue_counts.sort_values("rule_id", key=lambda s: s.map(rule_sort_key))
-        st.altair_chart(
-            horizontal_magnitude_bar(
-                issue_counts,
-                "rule_id",
-                "fail_count",
-                hue=STATUS_CRITICAL,
-                value_format=",d",
-                title="Fail count",
-                name_col="rule_name",
-                height=CHART_HEIGHT,
             ),
             use_container_width=True,
         )

@@ -13,6 +13,7 @@ No data is fabricated: only the tables backed by a real CSV are populated.
 absent from this loader.
 """
 
+import re
 from pathlib import Path
 
 import duckdb
@@ -36,30 +37,35 @@ DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 # Each region has its own data/<region>/csv export directory. New regions
 # just need a folder here - no code change - as long as filenames follow
-# the same "<prefix>-<dry|wet>-crop-<year>-<timestamp>.csv" convention as the
-# original Pangasinan export.
+# the region's naming convention below.
 REGIONS = ("pangasinan", "cagayan")
 DEFAULT_REGION = "pangasinan"
 
 # region -> {season_id: filename season code}, used to find that season's
 # file within the region's csv dir. Each region is pinned to the catalog
-# seasons (see catalog/season_bounds.yaml) its data actually covers -
-# Pangasinan's export uses "dry"/"wet" in the filename for its 2025 seasons;
-# Cagayan's export uses "ds2026"/"ws2026" ("dry/wet season 2026") for its
-# 2026 seasons.
+# seasons (see catalog/season_bounds.yaml) its data actually covers. The
+# code must be specific enough to tell seasons apart in a filename:
+# Pangasinan's export names files "...-dry-crop-2025-..." / "...-wet-crop-2025-..."
+# / "...-dry-crop-2026-..." (the year matters - "dry-crop" alone would match
+# both 2025 and 2026); Cagayan's uses "ds2026"/"ws2026" ("dry/wet season 2026").
+# Season 5 (Dry Crop 2026) is one catalog season shared by both regions -
+# each region's data is still scoped to its own files and results store.
 _REGION_SEASON_TAGS = {
-    "pangasinan": {3: "dry", 4: "wet"},
+    "pangasinan": {3: "dry-crop-2025", 4: "wet-crop-2025", 5: "dry-crop-2026"},
     "cagayan": {5: "ds2026", 6: "ws2026"},
 }
 
 # region -> table -> filename prefix template(s) (with a `{tag}` placeholder
 # for the season code above). Each region's export uses a different naming
-# convention, so these are looked up per region rather than shared.
+# convention, so these are looked up per region rather than shared. A table
+# may list several templates when exports of the same season were named
+# inconsistently (e.g. Pangasinan photos: "field-photo-" vs "field-photos-");
+# all of them compete equally - see _latest_match.
 _REGION_SOURCE_PATTERNS = {
     "pangasinan": {
-        "fields": ["fields-{tag}-crop-"],
-        "diaries": ["field-diaries-{tag}-crop-"],
-        "photos": ["field-photo-{tag}-crop-", "field-photos-{tag}-crop-"],
+        "fields": ["fields-{tag}-"],
+        "diaries": ["field-diaries-{tag}-"],
+        "photos": ["field-photo-{tag}-", "field-photos-{tag}-"],
     },
     "cagayan": {
         "fields": ["field-{tag}-cagayan-"],
@@ -79,27 +85,58 @@ def region_season_ids(region: str) -> list[int]:
     return list(_REGION_SEASON_TAGS.get(region, _REGION_SEASON_TAGS[DEFAULT_REGION]))
 
 
-def _latest_match(directory: Path, prefix: str) -> Path | None:
-    matches = sorted(directory.glob(f"{prefix}*.csv"))
-    return matches[-1] if matches else None
+# Every export filename ends in a 12-digit export timestamp (yyyymmddHHMM).
+_EXPORT_TIMESTAMP_RE = re.compile(r"-(\d{12})\.csv$")
+
+
+def _export_sort_key(path: Path) -> tuple[str, float, str]:
+    """Newest export wins: the timestamp in the filename first (the export
+    time, independent of copy/download times), then file mtime, then name as
+    a deterministic tie-breaker."""
+    match = _EXPORT_TIMESTAMP_RE.search(path.name)
+    return (match.group(1) if match else "", path.stat().st_mtime, path.name)
+
+
+def _latest_match(directory: Path, prefixes: list[str] | str) -> Path | None:
+    """The most recent export among ALL files matching ANY of `prefixes`.
+    Naming variants (e.g. "field-photo-" vs "field-photos-") are compared on
+    export time, not on which pattern is listed first, so re-exporting a
+    season under a slightly different name still supersedes the old file."""
+    if isinstance(prefixes, str):
+        prefixes = [prefixes]
+    candidates = {path for prefix in prefixes for path in directory.glob(f"{prefix}*.csv")}
+    return max(candidates, key=_export_sort_key) if candidates else None
 
 
 def _sources_for(region: str, table: str) -> dict[int, Path]:
     """Returns only the season_ids that actually have a matching file for
     `table` ("fields", "diaries", or "photos") in this region - a region
     missing a season's export (e.g. Cagayan before its wet-season 2026 data
-    lands) simply omits that season_id."""
+    lands) simply omits that season_id. When a season has several exports,
+    the newest one is used (see _latest_match)."""
     directory = region_csv_dir(region)
     season_tags = _REGION_SEASON_TAGS.get(region, _REGION_SEASON_TAGS[DEFAULT_REGION])
     patterns = _REGION_SOURCE_PATTERNS.get(region, _REGION_SOURCE_PATTERNS[DEFAULT_REGION])[table]
     sources: dict[int, Path] = {}
     for season_id, tag in season_tags.items():
-        for prefix_template in patterns:
-            match = _latest_match(directory, prefix_template.format(tag=tag))
-            if match is not None:
-                sources[season_id] = match
-                break
+        match = _latest_match(directory, [template.format(tag=tag) for template in patterns])
+        if match is not None:
+            sources[season_id] = match
     return sources
+
+
+def source_fingerprint(region: str = DEFAULT_REGION) -> tuple:
+    """Identity of the exact files currently selected for a region (names +
+    mtimes + sizes). Callers that cache the loaded database key on this so a
+    newly dropped export is picked up instead of serving stale data."""
+    files = sorted(
+        {
+            path
+            for table in ("fields", "diaries", "photos")
+            for path in _sources_for(region, table).values()
+        }
+    )
+    return tuple((p.name, p.stat().st_mtime_ns, p.stat().st_size) for p in files)
 
 
 def fields_sources(region: str = DEFAULT_REGION) -> dict[int, Path]:

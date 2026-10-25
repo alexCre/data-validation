@@ -1,6 +1,7 @@
 """C1-C9 tests against the real loaded dataset. Counts are locked in as a
-regression baseline (captured from the current data/csv export) rather than
-invented synthetic expectations, per the "no fabricated data" decision -
+regression baseline (captured from the original Aug-2026 Pangasinan export,
+pinned in tests/baseline_data.py so newer exports don't shift them) rather
+than invented synthetic expectations, per the "no fabricated data" decision -
 each count was independently derived by re-deriving the underlying SQL and
 cross-checked, not just copy-pasted from a first run.
 """
@@ -8,7 +9,7 @@ cross-checked, not just copy-pasted from a first run.
 import pytest
 
 import validation.operators  # noqa: F401
-from adapters import csv_adapter
+from tests.baseline_data import baseline_connection
 from validation.dsl.loader import load_all_rules
 from validation.engine import run_batch
 from validation.result_models import ResultStatus
@@ -16,9 +17,7 @@ from validation.result_models import ResultStatus
 
 @pytest.fixture(scope="module")
 def con():
-    connection = csv_adapter.get_connection()
-    csv_adapter.load_all(connection)
-    return connection
+    return baseline_connection()
 
 
 @pytest.fixture(scope="module")

@@ -1,8 +1,11 @@
 # Editable, documented season date boundaries, sourced from the real
 # seasons reference table (project-supplied, not derived from CSV - there
-# is no seasons.csv in this dataset's export). Only season_id 3 and 4 are
-# backed by real CSV data in this PoC (data/csv/fields-*-2025-*.csv); 1, 2,
-# 5, and 6 are documented for when 2024/2026 season data becomes available.
+# is no seasons.csv in this dataset's export). Seasons 3, 4 and 5 are backed
+# by Pangasinan CSV exports and 5 and 6 by Cagayan ones (see
+# adapters/csv_adapter.py's _REGION_SEASON_TAGS); the rest are documented for
+# when their data becomes available. Season 5 (Dry Crop 2026) is shared by
+# both regions. When a season has several exports in a region's csv folder,
+# the newest (by the timestamp in the filename) is the one that is loaded.
 # validation.engine injects these into each field-season's `season` context
 # key (see build_field_season_contexts). C4/C5/C7 read season boundaries
 # from here. `bucket_name` is source-system metadata, not used by any rule.

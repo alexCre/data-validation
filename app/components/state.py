@@ -36,14 +36,22 @@ def current_region() -> str:
 
 
 @st.cache_resource
-def _data_connection_for(region: str) -> duckdb.DuckDBPyConnection:
+def _data_connection_for(region: str, source_fingerprint: tuple) -> duckdb.DuckDBPyConnection:
+    """`source_fingerprint` is only a cache key: it changes whenever the
+    newest export selected for any of the region's seasons changes, so
+    dropping a fresh CSV into data/<region>/csv reloads the data on the next
+    interaction instead of needing an app restart."""
     con = csv_adapter.get_connection()
     csv_adapter.load_all(con, region=region)
     return con
 
 
+def _connection_for_region(region: str) -> duckdb.DuckDBPyConnection:
+    return _data_connection_for(region, csv_adapter.source_fingerprint(region))
+
+
 def get_data_connection() -> duckdb.DuckDBPyConnection:
-    return _data_connection_for(current_region())
+    return _connection_for_region(current_region())
 
 
 @st.cache_resource
@@ -201,8 +209,13 @@ def field_season_readiness_df(run_id: str | None = None) -> pd.DataFrame:
     ).fetchdf()
 
 
-@st.cache_data
 def lots_attributes_df(region: str | None = None) -> pd.DataFrame:
+    region = region or current_region()
+    return _lots_attributes_df(region, csv_adapter.source_fingerprint(region))
+
+
+@st.cache_data
+def _lots_attributes_df(region: str, source_fingerprint: tuple) -> pd.DataFrame:
     """lot_id/season_id -> the lot-identifying attributes Field Review
     filters/displays on (field name, TSAG, IA, RIS) instead of raw
     field_id. season_id is cast to VARCHAR to match validation_results'
@@ -213,8 +226,7 @@ def lots_attributes_df(region: str | None = None) -> pd.DataFrame:
     cache key actually varies per region - otherwise the first region to
     populate the cache would serve its TSAG/IA/RIS/field-name values to
     every other region's session too."""
-    region = region or current_region()
-    con = _data_connection_for(region)
+    con = _data_connection_for(region, source_fingerprint)
     return con.execute(
         """
         SELECT
